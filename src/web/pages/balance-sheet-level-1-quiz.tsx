@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import PraxyMascot from "../components/praxy-mascot";
-import { saveSession, updateProgress } from "../lib/api";
+import { saveSession, updateProgress, getQuestionsByLevel, QuestionData } from "../lib/api";
 
 // Types for quiz
 interface CompanyComparisonOption {
@@ -13,7 +13,7 @@ interface CompanyComparisonOption {
 
 interface QuizQuestion {
   id: number;
-  type: "company-comparison" | "yes-no" | "multiple-choice" | "ratio-comparison";
+  type: "company-comparison" | "yes-no" | "multiple-choice" | "ratio-comparison" | "visual-comparison";
   praxyMessage: string;
   options: string[] | CompanyComparisonOption[];
   correctAnswer: number;
@@ -24,8 +24,8 @@ interface QuizQuestion {
   };
 }
 
-// Quiz data
-const quizQuestions: QuizQuestion[] = [
+// Fallback quiz questions (used if DB fetch fails)
+const fallbackQuizQuestions: QuizQuestion[] = [
   {
     id: 1,
     type: "company-comparison",
@@ -104,6 +104,47 @@ const quizQuestions: QuizQuestion[] = [
     },
   },
 ];
+
+// Helper function to convert DB questions to quiz format
+const convertDbQuestionsToQuizFormat = (dbQuestions: QuestionData[]): QuizQuestion[] => {
+  return dbQuestions.map((q, index) => {
+    const type = q.type === 'visual-comparison' ? 'company-comparison' : q.type as any;
+    
+    let options: string[] | CompanyComparisonOption[];
+    let correctAnswer = 0;
+    
+    if (q.type === 'visual-comparison') {
+      // Convert visual comparison options to company cards
+      options = q.options.map(opt => ({
+        name: opt.label,
+        currentAssets: opt.data?.currentAssets ? `${(opt.data.currentAssets / 1000).toFixed(0)}K` : '',
+        currentLiabilities: opt.data?.currentLiabilities ? `${(opt.data.currentLiabilities / 1000).toFixed(0)}K` : '',
+        ratio: opt.data?.ratio?.toString() || '',
+      }));
+      correctAnswer = q.options.findIndex(opt => opt.value === q.correct_answer);
+    } else if (q.type === 'yes-no') {
+      options = q.options.map(opt => opt.label.toUpperCase());
+      correctAnswer = q.options.findIndex(opt => opt.value === q.correct_answer);
+    } else {
+      // Multiple choice
+      options = q.options.map(opt => opt.label);
+      correctAnswer = q.options.findIndex(opt => opt.value === q.correct_answer);
+    }
+    
+    return {
+      id: index + 1,
+      type,
+      praxyMessage: q.prompt,
+      options,
+      correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
+      hint: q.hint || undefined,
+      explanations: {
+        correct: q.explanation || 'Correct!',
+        wrong: q.explanation || 'Not quite right.',
+      },
+    };
+  });
+};
 
 // Step indicator component
 interface StepIndicatorProps {
@@ -378,13 +419,45 @@ const BalanceSheetLevel1Quiz = () => {
   const [score, setScore] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(fallbackQuizQuestions);
+  const [loading, setLoading] = useState(true);
   
   // Track quiz start time
   const startTimeRef = useRef<number>(Date.now());
 
+  // Load questions from DB
+  useEffect(() => {
+    const loadQuestions = async () => {
+      try {
+        const dbQuestions = await getQuestionsByLevel('balance-sheet', 1);
+        if (dbQuestions && dbQuestions.length > 0) {
+          const convertedQuestions = convertDbQuestionsToQuizFormat(dbQuestions);
+          setQuizQuestions(convertedQuestions);
+        }
+      } catch (error) {
+        console.error('Failed to load questions from DB:', error);
+        // Keep using fallback questions
+      }
+      setLoading(false);
+    };
+    loadQuestions();
+  }, []);
+
   const question = quizQuestions[currentQuestion];
   const progressPercent = ((currentQuestion + 1) / quizQuestions.length) * 100;
   const xpPerQuestion = 30;
+
+  // Show loading state
+  if (loading || !question) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-12 h-12 border-4 border-coral border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="font-inter text-charcoal/60">Loading quiz...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = () => {
     if (selectedAnswer === null) return;
