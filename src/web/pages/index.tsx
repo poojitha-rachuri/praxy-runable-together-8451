@@ -196,7 +196,7 @@ const Index = () => {
             <span className="font-nunito font-700 text-xl text-charcoal">Praxy</span>
           </div>
           <p className="font-inter font-400 text-charcoal/60 mb-2">
-            Built with <span className="text-coral">❤️</span> for Runable x ElevenLabs Hackathon
+            Built with <span className="text-coral">❤️</span> for RunTogether Hackathon
           </p>
           <p className="font-inter font-400 text-sm text-charcoal/40">
             © 2026 Praxy
