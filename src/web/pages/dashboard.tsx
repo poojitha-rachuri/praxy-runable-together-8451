@@ -77,8 +77,8 @@ const Dashboard = () => {
   const hasProgress =
     userStats && (userStats.sessions_count > 0 || userStats.badges_count > 0);
   const greetingText = hasProgress
-    ? `Welcome back${firstName ? `, ${firstName}` : ""}! Let's keep going!`
-    : `Hey${firstName ? ` ${firstName}` : ""}! Ready to decode some balance sheets today?`;
+    ? `Welcome back${firstName ? `, ${firstName}` : ""}! Let's keep going! 🚀`
+    : `Hey${firstName ? ` ${firstName}` : ""}! Ready to level up your skills today? 💪`;
 
   return (
     <div className="min-h-screen bg-cream">

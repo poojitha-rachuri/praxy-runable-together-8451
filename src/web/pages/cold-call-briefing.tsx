@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useLocation } from 'wouter';
-import { FiArrowLeft, FiPhone, FiTarget, FiUser, FiBuilding, FiZap } from 'react-icons/fi';
+import { FiArrowLeft, FiPhone, FiTarget, FiUser, FiBriefcase, FiZap } from 'react-icons/fi';
 import PraxyAvatar from '../components/ui/PraxyAvatar';
 import SpeechBubble from '../components/ui/SpeechBubble';
 import { getScenarioById, type Scenario } from '../lib/coldcall';
@@ -70,7 +70,22 @@ const ColdCallBriefing = () => {
       const data = await getScenarioById(scenarioId);
       
       if (data) {
-        setScenario(data);
+        // Map backend scenario to frontend format
+        setScenario({
+          id: data.id,
+          simulator_id: 'sim-cc',
+          level_number: (data as any).level || 1,
+          company_name: (data as any).company || 'Unknown',
+          company_url: data.company_url,
+          company_context: (data as any).company_context || `Learn about ${(data as any).company}`,
+          prospect_name: (data as any).prospect?.name || data.prospect_name,
+          prospect_role: (data as any).prospect?.role || data.prospect_role,
+          prospect_personality: data.prospect_personality || 'Professional',
+          objective: data.objective,
+          difficulty: data.difficulty,
+          tips: (data as any).tips || data.tips || [],
+          success_criteria: data.success_criteria || [],
+        });
       } else {
         // Fallback to hardcoded
         setScenario(hardcodedScenarios[scenarioId] || null);
@@ -145,7 +160,7 @@ const ColdCallBriefing = () => {
             <div className="bg-white rounded-[16px] p-6 shadow-warm">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-teal/10 flex items-center justify-center">
-                  <FiBuilding className="w-5 h-5 text-teal" />
+                  <FiBriefcase className="w-5 h-5 text-teal" />
                 </div>
                 <h2 className="font-nunito font-700 text-lg text-charcoal">The Company</h2>
               </div>

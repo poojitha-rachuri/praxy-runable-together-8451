@@ -1,55 +1,42 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { FiPhoneOff, FiMic, FiMicOff, FiSend } from 'react-icons/fi';
-import { getScenarioById, type Scenario, type TranscriptMessage, saveCallSession, scoreCall } from '../lib/coldcall';
-import { createColdCallAgent, ElevenLabsConversation } from '../lib/elevenlabs';
+import { useUser } from '@clerk/clerk-react';
+import { useConversation } from '@elevenlabs/react';
+import { FiPhoneOff, FiMic, FiVolume2 } from 'react-icons/fi';
+import { getScenarioById, type Scenario } from '../lib/coldcall';
+import { setClerkId } from '../lib/api';
 
 // Hardcoded scenarios for fallback
 const hardcodedScenarios: Record<string, Scenario> = {
-  'sc-stripe-1': {
-    id: 'sc-stripe-1',
+  'cc-1': {
+    id: 'cc-1',
     simulator_id: 'sim-cc',
     level_number: 1,
     company_name: 'Stripe',
     company_url: 'https://stripe.com',
     company_context: 'Stripe is a payments infrastructure company. You are selling a developer productivity tool.',
-    prospect_name: 'Alex Chen',
-    prospect_role: 'Engineering Manager',
+    prospect_name: 'Sarah',
+    prospect_role: 'Receptionist',
     prospect_personality: 'Friendly but busy. Values efficiency. Will give you 2 minutes if you hook them.',
-    objective: 'Book a 15-minute demo call',
+    objective: 'Get transferred to the decision maker',
     difficulty: 'beginner',
-    tips: ['Lead with value, not features', 'Mention developer pain points', 'Ask about their current stack'],
+    tips: ['Be polite and professional', 'Have a clear reason for calling', 'Ask for the person by name if possible'],
     success_criteria: ['Demo booked', 'Follow-up agreed', 'Contact info exchanged'],
   },
-  'sc-shopify-2': {
-    id: 'sc-shopify-2',
+  'cc-2': {
+    id: 'cc-2',
     simulator_id: 'sim-cc',
     level_number: 2,
     company_name: 'Shopify',
     company_url: 'https://shopify.com',
     company_context: 'Shopify is an e-commerce platform. You are selling an inventory management solution.',
-    prospect_name: 'Priya Sharma',
-    prospect_role: 'Operations Lead',
-    prospect_personality: 'Skeptical. Has seen many pitches. Needs proof and numbers.',
-    objective: 'Get agreement for a pilot program',
+    prospect_name: 'Michael Chen',
+    prospect_role: 'VP of Operations',
+    prospect_personality: 'Busy decision maker. Needs to see value quickly.',
+    objective: 'Earn a 15-minute meeting',
     difficulty: 'intermediate',
-    tips: ['Come with specific ROI numbers', 'Reference similar companies', 'Acknowledge their skepticism'],
-    success_criteria: ['Pilot agreed', 'Decision timeline shared', 'Stakeholders identified'],
-  },
-  'sc-zomato-3': {
-    id: 'sc-zomato-3',
-    simulator_id: 'sim-cc',
-    level_number: 3,
-    company_name: 'Zomato',
-    company_url: 'https://zomato.com',
-    company_context: 'Zomato is a food delivery platform. You are selling a customer analytics tool.',
-    prospect_name: 'Rahul Verma',
-    prospect_role: 'Head of Growth',
-    prospect_personality: 'Aggressive, interrupts often. Wants bottom-line impact only.',
-    objective: 'Secure a meeting with the CTO',
-    difficulty: 'advanced',
-    tips: ['Get to the point fast', 'Handle interruptions gracefully', 'Pivot to CTO meeting if stuck'],
-    success_criteria: ['CTO meeting confirmed', 'Business case understood', 'Budget discussion initiated'],
+    tips: ['Lead with value, not features', 'Mention a relevant pain point', 'Respect their time'],
+    success_criteria: ['Meeting booked', 'Decision timeline shared', 'Stakeholders identified'],
   },
 };
 
@@ -59,23 +46,66 @@ const formatTime = (seconds: number): string => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
 const ColdCallSession = () => {
   const { scenarioId } = useParams<{ scenarioId: string }>();
   const [, navigate] = useLocation();
+  const { user } = useUser();
   
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(true);
-  const [callActive, setCallActive] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isEnding, setIsEnding] = useState(false);
+  const [startTime, setStartTime] = useState<number>(0);
+  const [hasStarted, setHasStarted] = useState(false);
   
-  const conversationRef = useRef<ElevenLabsConversation | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ElevenLabs conversation hook
+  const conversation = useConversation({
+    onConnect: () => {
+      console.log('Connected to ElevenLabs');
+      setStartTime(Date.now());
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setElapsedTime((prev) => prev + 1);
+      }, 1000);
+    },
+    onDisconnect: () => {
+      console.log('Disconnected from ElevenLabs');
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    },
+    onMessage: ({ message, source }) => {
+      console.log('Message:', source, message);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: source === 'ai' ? 'assistant' : 'user',
+          content: message,
+          timestamp: Date.now(),
+        },
+      ]);
+    },
+    onError: (error) => {
+      console.error('ElevenLabs error:', error);
+    },
+  });
+
+  // Ensure clerkId is set for API calls
+  useEffect(() => {
+    if (user?.id) {
+      setClerkId(user.id);
+    }
+  }, [user?.id]);
 
   // Load scenario
   useEffect(() => {
@@ -91,78 +121,53 @@ const ColdCallSession = () => {
     loadScenario();
   }, [scenarioId]);
 
-  // Start call when scenario loads
+  // Auto-scroll transcript
   useEffect(() => {
-    if (scenario && !callActive && !loading) {
-      startCall();
-    }
-    
+    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
-      if (conversationRef.current) {
-        conversationRef.current.stop();
+      if (conversation.status === 'connected') {
+        conversation.endSession();
       }
     };
-  }, [scenario, loading]);
-
-  // Auto-scroll transcript
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [transcript]);
+  }, []);
 
   const startCall = useCallback(async () => {
-    if (!scenario) return;
+    if (!scenario || hasStarted) return;
 
-    // Initialize ElevenLabs conversation
-    const config = createColdCallAgent(scenario);
-    const conversation = new ElevenLabsConversation(config);
-    
-    conversation.onTranscriptUpdate = (messages) => {
-      setTranscript([...messages]);
-    };
-    
-    conversation.onError = (error) => {
-      console.error('Conversation error:', error);
-    };
-
-    conversationRef.current = conversation;
-    
-    // Start the conversation
-    const started = await conversation.start();
-    
-    if (started) {
-      setCallActive(true);
+    try {
+      // Request microphone permission first
+      await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // Start timer
-      timerRef.current = setInterval(() => {
-        setElapsedTime((prev) => prev + 1);
-      }, 1000);
+      // Get the agent ID - for now use environment variable or scenario-based lookup
+      // The agent ID should be configured per scenario in ElevenLabs dashboard
+      const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID;
+      
+      if (!agentId) {
+        console.error('No ElevenLabs agent ID configured');
+        alert('ElevenLabs agent not configured. Please set VITE_ELEVENLABS_AGENT_ID in your environment.');
+        return;
+      }
 
-      // Add initial prospect greeting after a short delay
-      setTimeout(() => {
-        conversation.addMessage('assistant', `Hello, this is ${scenario.prospect_name}. Who's calling?`);
-      }, 1500);
+      setHasStarted(true);
+      
+      // Start the conversation with the agent
+      await conversation.startSession({
+        agentId,
+      });
+      
+    } catch (error) {
+      console.error('Error starting call:', error);
+      setHasStarted(false);
+      alert('Failed to start call. Please ensure microphone access is allowed.');
     }
-  }, [scenario]);
-
-  const handleSendMessage = () => {
-    if (!inputText.trim() || !conversationRef.current || isProcessing) return;
-    
-    setIsProcessing(true);
-    conversationRef.current.simulateResponse(inputText.trim());
-    setInputText('');
-    
-    setTimeout(() => setIsProcessing(false), 2000);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+  }, [scenario, conversation, hasStarted]);
 
   const endCall = async () => {
     if (!scenario || isEnding) return;
@@ -174,40 +179,107 @@ const ColdCallSession = () => {
       clearInterval(timerRef.current);
     }
     
-    // Stop conversation and get final transcript
-    const finalTranscript = conversationRef.current?.stop() || transcript;
+    // End the ElevenLabs session
+    await conversation.endSession();
     
-    // Score the call
-    const score = await scoreCall(finalTranscript, scenario);
+    const duration = Math.floor((Date.now() - startTime) / 1000);
     
-    if (score) {
-      // Save session
-      await saveCallSession(scenario.id, finalTranscript, elapsedTime, score);
-    }
+    // Get user messages only
+    const userMessages = messages.filter(m => m.role === 'user');
+    const totalUserWords = userMessages.reduce((sum, m) => sum + m.content.split(' ').length, 0);
+    const hasUserSpoken = userMessages.length > 0 && totalUserWords > 10;
     
-    // Navigate to feedback page with data in state
-    // Store in sessionStorage for the feedback page
+    // Analyze conversation quality
+    const analyzeConversation = () => {
+      if (!hasUserSpoken) {
+        // User didn't really talk - give low scores
+        return {
+          outcome: 'failure' as const,
+          opening: Math.min(20, userMessages.length * 10),
+          value: 0,
+          objection: 0,
+          control: 0,
+          close: 0,
+          highlights: [] as Array<{ text: string; type: 'good' | 'improve' }>,
+          improvements: [
+            'You need to actually speak during the call!',
+            'Introduce yourself and explain why you\'re calling',
+            'Try to engage the prospect in conversation',
+          ],
+        };
+      }
+      
+      const allUserContent = userMessages.map(m => m.content.toLowerCase()).join(' ');
+      const lastMessages = messages.slice(-3).map(m => m.content.toLowerCase());
+      
+      // Check for key behaviors
+      const hasIntroduction = allUserContent.includes('hi') || allUserContent.includes('hello') || allUserContent.includes('my name');
+      const hasValueProp = allUserContent.includes('help') || allUserContent.includes('save') || allUserContent.includes('improve') || allUserContent.includes('%');
+      const hasQuestion = allUserContent.includes('?');
+      const hasClose = allUserContent.includes('meeting') || allUserContent.includes('demo') || allUserContent.includes('call') || allUserContent.includes('time');
+      
+      // Determine outcome
+      let outcome: 'success' | 'partial' | 'failure' = 'failure';
+      if (lastMessages.some(m => m.includes('meeting') || m.includes('demo') || m.includes('call you') || m.includes('transfer') || m.includes('yes'))) {
+        outcome = 'success';
+      } else if (lastMessages.some(m => m.includes('maybe') || m.includes('later') || m.includes('email') || m.includes('send'))) {
+        outcome = 'partial';
+      }
+      
+      // Calculate scores based on actual behavior
+      const openingScore = hasIntroduction ? 70 : 30;
+      const valueScore = hasValueProp ? 65 : 20;
+      const objectionScore = messages.length > 4 ? 60 : 30;
+      const controlScore = hasQuestion ? 70 : 40;
+      const closeScore = hasClose ? (outcome === 'success' ? 80 : 50) : 20;
+      
+      const highlights: Array<{ text: string; type: 'good' | 'improve' }> = [];
+      const improvements: string[] = [];
+      
+      if (hasIntroduction) highlights.push({ text: 'Good introduction', type: 'good' });
+      else improvements.push('Start with a clear introduction');
+      
+      if (hasValueProp) highlights.push({ text: 'Mentioned value proposition', type: 'good' });
+      else improvements.push('Lead with value - what can you do for them?');
+      
+      if (hasQuestion) highlights.push({ text: 'Asked questions', type: 'good' });
+      else improvements.push('Ask questions to understand their needs');
+      
+      if (hasClose) highlights.push({ text: 'Attempted to close', type: 'good' });
+      else improvements.push('Always end with a clear call-to-action');
+      
+      return {
+        outcome,
+        opening: openingScore,
+        value: valueScore,
+        objection: objectionScore,
+        control: controlScore,
+        close: closeScore,
+        highlights,
+        improvements,
+      };
+    };
+    
+    const analysis = analyzeConversation();
+    const overallScore = hasUserSpoken 
+      ? Math.round((analysis.opening + analysis.value + analysis.objection + analysis.control + analysis.close) / 5)
+      : Math.min(15, messages.length * 5);
+    
+    // Store result for feedback page
     sessionStorage.setItem('coldcall_result', JSON.stringify({
       scenarioId: scenario.id,
-      transcript: finalTranscript,
-      duration: elapsedTime,
-      score: score || {
-        overall: 65,
-        opening: 70,
-        value: 60,
-        objection: 65,
-        control: 70,
-        close: 55,
-        highlights: [
-          { text: 'Good opening hook', type: 'good' },
-          { text: 'Mentioned specific pain points', type: 'good' },
-          { text: 'Could have asked for the meeting sooner', type: 'improve' },
-        ],
-        improvements: [
-          'Try to close earlier in the conversation',
-          'Use more specific numbers and data',
-          'Handle objections with more confidence',
-        ],
+      transcript: messages,
+      duration,
+      outcome: analysis.outcome,
+      score: {
+        overall: overallScore,
+        opening: analysis.opening,
+        value: analysis.value,
+        objection: analysis.objection,
+        control: analysis.control,
+        close: analysis.close,
+        highlights: analysis.highlights,
+        improvements: analysis.improvements,
       },
     }));
     
@@ -225,16 +297,27 @@ const ColdCallSession = () => {
     );
   }
 
+  const isConnected = conversation.status === 'connected';
+  const isConnecting = conversation.status === 'connecting';
+
+  const [showScenario, setShowScenario] = useState(true);
+
   return (
     <div className="min-h-screen bg-charcoal flex flex-col">
       {/* Header */}
       <header className="py-4 px-6 border-b border-white/10">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* Live indicator */}
+            {/* Status indicator */}
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-coral rounded-full animate-pulse" />
-              <span className="font-inter text-sm text-white/80">LIVE</span>
+              <div className={`w-3 h-3 rounded-full ${
+                isConnected ? 'bg-green-500 animate-pulse' : 
+                isConnecting ? 'bg-yellow-500 animate-pulse' : 
+                'bg-gray-500'
+              }`} />
+              <span className="font-inter text-sm text-white/80">
+                {isConnected ? 'LIVE' : isConnecting ? 'CONNECTING...' : 'READY'}
+              </span>
             </div>
             
             {/* Company name */}
@@ -244,24 +327,107 @@ const ColdCallSession = () => {
             </div>
           </div>
           
-          {/* Timer */}
-          <div className="font-mono text-2xl text-white/90">
-            {formatTime(elapsedTime)}
+          <div className="flex items-center gap-4">
+            {/* Toggle scenario panel */}
+            {hasStarted && (
+              <button
+                onClick={() => setShowScenario(!showScenario)}
+                className="px-3 py-1 rounded-lg bg-white/10 text-white/80 font-inter text-sm hover:bg-white/20 transition-colors"
+              >
+                {showScenario ? 'Hide' : 'Show'} Scenario
+              </button>
+            )}
+            
+            {/* Timer */}
+            <div className="font-mono text-2xl text-white/90">
+              {formatTime(elapsedTime)}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Transcript area */}
+      {/* Main area with scenario panel and transcript */}
       <main className="flex-1 overflow-hidden px-6 py-4">
-        <div className="max-w-4xl mx-auto h-full flex flex-col">
+        <div className="max-w-6xl mx-auto h-full flex gap-4">
+          {/* Scenario reference panel (collapsible) */}
+          {hasStarted && showScenario && (
+            <div className="w-72 flex-shrink-0 bg-white/5 rounded-xl p-4 overflow-y-auto">
+              <h3 className="font-nunito font-700 text-white mb-3">📋 Scenario Reference</h3>
+              
+              <div className="space-y-4 text-sm">
+                <div>
+                  <p className="text-white/50 text-xs mb-1">COMPANY</p>
+                  <p className="text-white font-600">{scenario.company_name}</p>
+                  {scenario.company_context && (
+                    <p className="text-white/60 text-xs mt-1">{scenario.company_context}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <p className="text-white/50 text-xs mb-1">PROSPECT</p>
+                  <p className="text-white font-600">{scenario.prospect_name}</p>
+                  <p className="text-white/60">{scenario.prospect_role}</p>
+                  {scenario.prospect_personality && (
+                    <p className="text-white/50 text-xs mt-1 italic">"{scenario.prospect_personality}"</p>
+                  )}
+                </div>
+                
+                <div className="bg-coral/20 rounded-lg p-3">
+                  <p className="text-white/50 text-xs mb-1">🎯 OBJECTIVE</p>
+                  <p className="text-coral font-600">{scenario.objective}</p>
+                </div>
+                
+                {scenario.tips && scenario.tips.length > 0 && (
+                  <div>
+                    <p className="text-white/50 text-xs mb-2">💡 TIPS</p>
+                    <ul className="space-y-1">
+                      {scenario.tips.map((tip, i) => (
+                        <li key={i} className="text-white/70 text-xs flex gap-2">
+                          <span className="text-teal">•</span>
+                          <span>{tip}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Transcript area */}
+          <div className="flex-1 flex flex-col">
           <div className="flex-1 overflow-y-auto space-y-4 pb-4">
-            {transcript.length === 0 && (
+            {!hasStarted && (
               <div className="text-center py-12">
-                <p className="font-inter text-white/40">Call connecting...</p>
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-coral/20 flex items-center justify-center">
+                  <FiMic className="w-10 h-10 text-coral" />
+                </div>
+                <h2 className="font-nunito font-700 text-xl text-white mb-2">Ready to start your call?</h2>
+                <p className="font-inter text-white/60 mb-6 max-w-md mx-auto">
+                  You'll be speaking with {scenario.prospect_name}, {scenario.prospect_role} at {scenario.company_name}.
+                  <br /><br />
+                  <strong className="text-coral">Objective:</strong> {scenario.objective}
+                </p>
+                <button
+                  onClick={startCall}
+                  disabled={isConnecting}
+                  className="px-8 py-4 bg-coral text-white rounded-xl font-nunito font-700 text-lg hover:bg-coral/90 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                >
+                  {isConnecting ? 'Connecting...' : 'Start Call'}
+                </button>
               </div>
             )}
             
-            {transcript.map((message, index) => (
+            {hasStarted && messages.length === 0 && (
+              <div className="text-center py-12">
+                <div className="flex items-center justify-center gap-2 text-white/40">
+                  <FiVolume2 className="w-5 h-5 animate-pulse" />
+                  <span className="font-inter">Waiting for response...</span>
+                </div>
+              </div>
+            )}
+            
+            {messages.map((message, index) => (
               <div
                 key={index}
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -284,7 +450,7 @@ const ColdCallSession = () => {
               </div>
             ))}
             
-            {isProcessing && (
+            {conversation.isSpeaking && (
               <div className="flex justify-start">
                 <div className="bg-white/10 rounded-2xl rounded-bl-sm px-4 py-3">
                   <div className="flex gap-1">
@@ -298,64 +464,46 @@ const ColdCallSession = () => {
             
             <div ref={transcriptEndRef} />
           </div>
+          </div>
         </div>
       </main>
 
-      {/* Input area */}
-      <div className="border-t border-white/10 px-6 py-4">
-        <div className="max-w-4xl mx-auto">
-          {/* Text input for demo mode */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type your pitch... (Demo mode - type to simulate speech)"
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-white/40 font-inter focus:outline-none focus:ring-2 focus:ring-coral/50"
-                disabled={isProcessing || isEnding}
-              />
+      {/* Control buttons */}
+      {hasStarted && (
+        <div className="border-t border-white/10 px-6 py-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-center gap-6">
+              {/* Mute indicator */}
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                isConnected ? 'bg-white/10 text-white' : 'bg-white/5 text-white/30'
+              }`}>
+                <FiMic className="w-6 h-6" />
+              </div>
+              
+              {/* End call button */}
+              <button
+                onClick={endCall}
+                disabled={isEnding || !isConnected}
+                className="w-16 h-16 rounded-full bg-coral text-white flex items-center justify-center hover:bg-coral/90 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              >
+                <FiPhoneOff className="w-7 h-7" />
+              </button>
+              
+              {/* Speaking indicator */}
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                conversation.isSpeaking ? 'bg-green-500/20 text-green-400' : 'bg-white/5 text-white/30'
+              }`}>
+                <FiVolume2 className="w-6 h-6" />
+              </div>
             </div>
-            <button
-              onClick={handleSendMessage}
-              disabled={!inputText.trim() || isProcessing || isEnding}
-              className="w-12 h-12 rounded-xl bg-coral text-white flex items-center justify-center hover:bg-coral/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FiSend className="w-5 h-5" />
-            </button>
-          </div>
-          
-          {/* Control buttons */}
-          <div className="flex items-center justify-center gap-4">
-            {/* Mute button */}
-            <button
-              onClick={() => setIsMuted(!isMuted)}
-              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
-                isMuted 
-                  ? 'bg-coral/20 text-coral' 
-                  : 'bg-white/10 text-white hover:bg-white/20'
-              }`}
-            >
-              {isMuted ? <FiMicOff className="w-6 h-6" /> : <FiMic className="w-6 h-6" />}
-            </button>
             
-            {/* End call button */}
-            <button
-              onClick={endCall}
-              disabled={isEnding}
-              className="w-16 h-16 rounded-full bg-coral text-white flex items-center justify-center hover:bg-coral/90 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-            >
-              <FiPhoneOff className="w-7 h-7" />
-            </button>
+            {/* Objective reminder */}
+            <p className="text-center font-inter text-xs text-white/40 mt-4">
+              Objective: {scenario.objective}
+            </p>
           </div>
-          
-          {/* Objective reminder */}
-          <p className="text-center font-inter text-xs text-white/40 mt-4">
-            Objective: {scenario.objective}
-          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 };

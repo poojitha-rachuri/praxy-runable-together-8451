@@ -27,19 +27,19 @@ export const SIMULATORS: SimulatorMeta[] = [
     id: 'cold-call',
     name: 'Cold Call Hero',
     slug: 'cold-call',
-    status: 'coming_soon',
+    status: 'active',
     total_levels: 10,
     icon: '📞',
-    route: '#',
+    route: '/cold-call',
   },
   {
     id: 'rca',
     name: 'RCA Detective',
     slug: 'rca',
-    status: 'coming_soon',
+    status: 'active',
     total_levels: 10,
     icon: '🔍',
-    route: '#',
+    route: '/rca',
   },
 ];
 

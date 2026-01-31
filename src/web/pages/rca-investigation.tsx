@@ -1,16 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useRoute, useLocation } from 'wouter';
+import { useUser } from '@clerk/clerk-react';
 import { FiArrowLeft, FiHelpCircle } from 'react-icons/fi';
 import PraxyAvatar from '../components/ui/PraxyAvatar';
 import DataRequestPanel from '../components/rca/DataRequestPanel';
 import FiveWhysBuilder from '../components/rca/FiveWhysBuilder';
 import HypothesisForm from '../components/rca/HypothesisForm';
 import { getCaseById, submitAnalysis, type RCACase, type InvestigationState } from '../lib/rca';
+import { setClerkId } from '../lib/api';
 
 const RCAInvestigation = () => {
   const [, params] = useRoute('/rca/:caseId');
   const [, setLocation] = useLocation();
+  const { user } = useUser();
   const caseId = params?.caseId;
+
+  // Ensure clerkId is set for API calls
+  useEffect(() => {
+    if (user?.id) {
+      setClerkId(user.id);
+    }
+  }, [user?.id]);
 
   const [rcaCase, setRcaCase] = useState<RCACase | null>(null);
   const [loading, setLoading] = useState(true);

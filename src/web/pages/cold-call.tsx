@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { useUser } from '@clerk/clerk-react';
-import { FiPhone, FiLock, FiCheck, FiArrowLeft } from 'react-icons/fi';
+import { FiPhone, FiLock, FiCheck, FiArrowLeft, FiClock, FiTrendingUp } from 'react-icons/fi';
 import PraxyAvatar from '../components/ui/PraxyAvatar';
-import { getScenarios, getColdCallProgress, type Scenario } from '../lib/coldcall';
+import { getScenarios, getColdCallProgress, getColdCallSessions, type Scenario, type ColdCallSession } from '../lib/coldcall';
 
 // Difficulty badge colors
 const difficultyConfig = {
@@ -12,14 +12,18 @@ const difficultyConfig = {
   advanced: { bg: 'bg-coral/10', text: 'text-coral', label: 'Advanced' },
 };
 
-// Company logos (fallback to initials)
-const getCompanyLogo = (companyName: string) => {
-  const logos: Record<string, string> = {
-    'Stripe': 'https://logo.clearbit.com/stripe.com',
-    'Shopify': 'https://logo.clearbit.com/shopify.com',
-    'Zomato': 'https://logo.clearbit.com/zomato.com',
-  };
-  return logos[companyName] || null;
+// Company icons (using emoji for reliability)
+const companyIcons: Record<string, { emoji: string; bg: string }> = {
+  'Stripe': { emoji: '💳', bg: 'bg-purple-100' },
+  'Shopify': { emoji: '🛒', bg: 'bg-green-100' },
+  'Razorpay': { emoji: '💰', bg: 'bg-blue-100' },
+  'Freshworks': { emoji: '🌱', bg: 'bg-orange-100' },
+  'Zerodha': { emoji: '📈', bg: 'bg-indigo-100' },
+  'Zomato': { emoji: '🍔', bg: 'bg-red-100' },
+};
+
+const getCompanyIcon = (companyName: string) => {
+  return companyIcons[companyName] || { emoji: companyName.charAt(0), bg: 'bg-coral/10' };
 };
 
 interface ScenarioCardProps {
@@ -30,7 +34,7 @@ interface ScenarioCardProps {
 
 const ScenarioCard = ({ scenario, isLocked, isCompleted }: ScenarioCardProps) => {
   const difficulty = difficultyConfig[scenario.difficulty] || difficultyConfig.beginner;
-  const logo = getCompanyLogo(scenario.company_name);
+  const companyIcon = getCompanyIcon(scenario.company_name);
 
   const cardContent = (
     <div 
@@ -56,16 +60,10 @@ const ScenarioCard = ({ scenario, isLocked, isCompleted }: ScenarioCardProps) =>
         </div>
       )}
 
-      {/* Header: Company logo + Level */}
+      {/* Header: Company icon + Level */}
       <div className="flex items-start justify-between mb-4">
-        <div className="w-12 h-12 rounded-xl bg-cream flex items-center justify-center overflow-hidden">
-          {logo ? (
-            <img src={logo} alt={scenario.company_name} className="w-8 h-8 object-contain" />
-          ) : (
-            <span className="font-nunito font-700 text-lg text-coral">
-              {scenario.company_name.charAt(0)}
-            </span>
-          )}
+        <div className={`w-12 h-12 rounded-xl ${companyIcon.bg} flex items-center justify-center`}>
+          <span className="text-2xl">{companyIcon.emoji}</span>
         </div>
         <span className={`px-3 py-1 rounded-full text-xs font-inter font-600 ${difficulty.bg} ${difficulty.text}`}>
           {difficulty.label}
@@ -115,11 +113,20 @@ const ScenarioCard = ({ scenario, isLocked, isCompleted }: ScenarioCardProps) =>
   );
 };
 
+// Format duration helper
+const formatDuration = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}m ${secs}s`;
+};
+
 const ColdCall = () => {
   const { user } = useUser();
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [completedScenarios, setCompletedScenarios] = useState<string[]>([]);
+  const [callHistory, setCallHistory] = useState<ColdCallSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -128,63 +135,33 @@ const ColdCall = () => {
       // Load scenarios
       const scenarioData = await getScenarios();
       
-      // If no scenarios from API, use hardcoded data
-      if (scenarioData.length === 0) {
-        setScenarios([
-          {
-            id: 'sc-stripe-1',
-            simulator_id: 'sim-cc',
-            level_number: 1,
-            company_name: 'Stripe',
-            company_url: 'https://stripe.com',
-            company_context: 'Stripe is a payments infrastructure company. You are selling a developer productivity tool.',
-            prospect_name: 'Alex Chen',
-            prospect_role: 'Engineering Manager',
-            prospect_personality: 'Friendly but busy. Values efficiency. Will give you 2 minutes if you hook them.',
-            objective: 'Book a 15-minute demo call',
-            difficulty: 'beginner',
-            tips: ['Lead with value, not features', 'Mention developer pain points', 'Ask about their current stack'],
-            success_criteria: ['Demo booked', 'Follow-up agreed', 'Contact info exchanged'],
-          },
-          {
-            id: 'sc-shopify-2',
-            simulator_id: 'sim-cc',
-            level_number: 2,
-            company_name: 'Shopify',
-            company_url: 'https://shopify.com',
-            company_context: 'Shopify is an e-commerce platform. You are selling an inventory management solution.',
-            prospect_name: 'Priya Sharma',
-            prospect_role: 'Operations Lead',
-            prospect_personality: 'Skeptical. Has seen many pitches. Needs proof and numbers.',
-            objective: 'Get agreement for a pilot program',
-            difficulty: 'intermediate',
-            tips: ['Come with specific ROI numbers', 'Reference similar companies', 'Acknowledge their skepticism'],
-            success_criteria: ['Pilot agreed', 'Decision timeline shared', 'Stakeholders identified'],
-          },
-          {
-            id: 'sc-zomato-3',
-            simulator_id: 'sim-cc',
-            level_number: 3,
-            company_name: 'Zomato',
-            company_url: 'https://zomato.com',
-            company_context: 'Zomato is a food delivery platform. You are selling a customer analytics tool.',
-            prospect_name: 'Rahul Verma',
-            prospect_role: 'Head of Growth',
-            prospect_personality: 'Aggressive, interrupts often. Wants bottom-line impact only.',
-            objective: 'Secure a meeting with the CTO',
-            difficulty: 'advanced',
-            tips: ['Get to the point fast', 'Handle interruptions gracefully', 'Pivot to CTO meeting if stuck'],
-            success_criteria: ['CTO meeting confirmed', 'Business case understood', 'Budget discussion initiated'],
-          },
-        ]);
-      } else {
-        setScenarios(scenarioData);
-      }
+      // Map backend scenarios to frontend format
+      const mappedScenarios = scenarioData.map((s: any) => ({
+        id: s.id,
+        simulator_id: s.simulator_id || 'sim-cc',
+        level_number: s.level,
+        company_name: s.company,
+        company_url: null,
+        company_context: null,
+        prospect_name: s.prospect.name,
+        prospect_role: s.prospect.role,
+        prospect_personality: null,
+        objective: s.objective,
+        difficulty: s.difficulty,
+        tips: s.tips || [],
+        success_criteria: [],
+      }));
+      
+      setScenarios(mappedScenarios);
 
-      // Load progress
+      // Load progress and history
       if (user?.id) {
         const progress = await getColdCallProgress();
         setCompletedScenarios(progress.completedScenarios);
+        
+        // Load call history
+        const history = await getColdCallSessions();
+        setCallHistory(history);
       }
 
       setLoading(false);
@@ -267,6 +244,61 @@ const ColdCall = () => {
                     isCompleted={completedScenarios.includes(scenario.id)}
                   />
                 ))}
+            </div>
+          )}
+
+          {/* Call History Section */}
+          {callHistory.length > 0 && (
+            <div className="mt-10">
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="flex items-center gap-2 font-nunito font-700 text-lg text-charcoal mb-4 hover:text-coral transition-colors"
+              >
+                <FiClock className="w-5 h-5" />
+                Call History ({callHistory.length})
+                <span className="text-charcoal/40 text-sm font-normal ml-2">
+                  {showHistory ? 'Hide' : 'Show'}
+                </span>
+              </button>
+              
+              {showHistory && (
+                <div className="space-y-3">
+                  {callHistory.slice(0, 10).map((session) => {
+                    const scenario = scenarios.find(s => s.id === session.scenario_id);
+                    const scoreColor = session.overall_score >= 70 ? 'text-teal' : session.overall_score >= 50 ? 'text-yellow-600' : 'text-coral';
+                    
+                    return (
+                      <Link key={session.id} href={`/cold-call/${session.scenario_id}/feedback`}>
+                        <div className="bg-white rounded-[12px] p-4 shadow-sm hover:shadow-warm transition-all cursor-pointer flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-lg bg-charcoal/5 flex items-center justify-center">
+                              <FiPhone className="w-5 h-5 text-charcoal/40" />
+                            </div>
+                            <div>
+                              <p className="font-inter font-600 text-charcoal">
+                                {scenario?.company_name || 'Unknown'}
+                              </p>
+                              <p className="font-inter text-xs text-charcoal/50">
+                                {new Date(session.completed_at).toLocaleDateString()} • {formatDuration(session.duration_seconds)}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className={`font-nunito font-700 text-xl ${scoreColor}`}>
+                                {session.overall_score}
+                              </p>
+                              <p className="font-inter text-xs text-charcoal/40">score</p>
+                            </div>
+                            <FiTrendingUp className={`w-5 h-5 ${scoreColor}`} />
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

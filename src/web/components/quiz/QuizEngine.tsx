@@ -5,7 +5,7 @@ import PraxyMascot from '../praxy-mascot';
 import QuestionCard from './QuestionCard';
 import QuizComplete from './QuizComplete';
 import { getQuestionsByLevel, submitAnswer } from '../../lib/api/questions';
-import { saveSession, updateProgress } from '../../lib/api';
+import { saveSession, updateProgress, setClerkId } from '../../lib/api';
 import type { Question, AnswerResult } from '../../types/quiz';
 
 interface QuizEngineProps {
@@ -36,6 +36,13 @@ const QuizEngine = ({ levelId, levelNumber, levelTitle, backLink, onComplete, on
   const [saving, setSaving] = useState(false);
 
   const startTimeRef = useRef<number>(Date.now());
+
+  // Ensure clerkId is set for API calls
+  useEffect(() => {
+    if (user?.id) {
+      setClerkId(user.id);
+    }
+  }, [user?.id]);
 
   // Fetch questions
   useEffect(() => {

@@ -3,6 +3,9 @@ import { cors } from "hono/cors";
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, desc } from 'drizzle-orm';
 import { users, progress, sessions, badges, simulators, levels, questions, companyData } from './database/schema';
+import { getScenarios, getAgentIdForLevel, getScenarioById } from './lib/coldcall-scenarios';
+import { scoreCallWithAI } from './lib/coldcall-scoring';
+import { scoreWithAI } from './lib/scoring';
 
 const app = new Hono<{ Bindings: Env }>()
   .basePath('api');
@@ -47,6 +50,7 @@ app.get('/init-db', async (c) => {
         badges TEXT DEFAULT '[]',
         best_score INTEGER DEFAULT 0,
         total_sessions INTEGER DEFAULT 0,
+        total_xp INTEGER DEFAULT 0,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(clerk_id, simulator)
       )
@@ -253,6 +257,32 @@ app.get('/init-db', async (c) => {
     return c.json({ success: true, message: 'Database initialized with seed data' });
   } catch (error) {
     console.error('Error initializing database:', error);
+    return c.json({ success: false, error: String(error) }, 500);
+  }
+});
+
+// GET /api/migrate-progress - Add total_xp column to existing progress table
+app.get('/migrate-progress', async (c) => {
+  try {
+    const db = c.env.DB;
+    
+    // Try to add the total_xp column if it doesn't exist
+    // SQLite's ALTER TABLE ADD COLUMN will fail if column exists, so we catch that error
+    try {
+      await db.prepare(`
+        ALTER TABLE progress ADD COLUMN total_xp INTEGER DEFAULT 0
+      `).run();
+      return c.json({ success: true, message: 'Added total_xp column to progress table' });
+    } catch (alterError) {
+      // If the error is because column already exists, that's okay
+      const errorMsg = String(alterError);
+      if (errorMsg.includes('duplicate column') || errorMsg.includes('already exists')) {
+        return c.json({ success: true, message: 'total_xp column already exists' });
+      }
+      throw alterError;
+    }
+  } catch (error) {
+    console.error('Error migrating progress table:', error);
     return c.json({ success: false, error: String(error) }, 500);
   }
 });
@@ -1147,7 +1177,228 @@ app.get('/seed-content', async (c) => {
 });
 
 // ====================
-// COLD CALL SCENARIOS ROUTES
+// ELEVENLABS COLD CALL ROUTES
+// ====================
+
+// GET /api/coldcall/scenarios - Get all cold call scenarios with agent IDs
+app.get('/coldcall/scenarios', async (c) => {
+  try {
+    const scenarios = getScenarios(c.env);
+    
+    // Add agent_id to each scenario
+    const scenariosWithAgents = scenarios.map(scenario => ({
+      ...scenario,
+      agent_id: getAgentIdForLevel(c.env, scenario.level)
+    }));
+    
+    return c.json({ success: true, scenarios: scenariosWithAgents });
+  } catch (error) {
+    console.error('Error in GET /coldcall/scenarios:', error);
+    return c.json({ success: false, error: 'Failed to get scenarios' }, 500);
+  }
+});
+
+// POST /api/coldcall/start - Start a cold call session and get ElevenLabs signed URL
+app.post('/coldcall/start', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      clerk_id: string;
+      scenario_id: string;
+    };
+    
+    const { clerk_id, scenario_id } = body;
+    
+    if (!clerk_id || !scenario_id) {
+      return c.json({ success: false, error: 'clerk_id and scenario_id are required' }, 400);
+    }
+    
+    // Get scenario to determine agent_id
+    const scenario = getScenarioById(c.env, scenario_id);
+    
+    if (!scenario) {
+      return c.json({ success: false, error: 'Invalid scenario_id' }, 404);
+    }
+    
+    const agent_id = getAgentIdForLevel(c.env, scenario.level);
+    
+    // Create session in database
+    const session_id = crypto.randomUUID();
+    const db = c.env.DB;
+    
+    await db.prepare(`
+      INSERT INTO sessions (id, clerk_id, simulator, level, score, total_questions, time_seconds, answers, completed_at)
+      VALUES (?, ?, 'coldcall', ?, NULL, NULL, NULL, NULL, datetime('now'))
+    `).bind(session_id, clerk_id, scenario.level).run();
+    
+    // Get signed URL from ElevenLabs for WebSocket connection
+    if (!c.env.ELEVENLABS_API_KEY) {
+      return c.json({ success: false, error: 'ElevenLabs API key not configured' }, 500);
+    }
+    
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agent_id}`,
+      {
+        method: 'GET',
+        headers: {
+          'xi-api-key': c.env.ELEVENLABS_API_KEY
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('ElevenLabs API error:', response.status);
+      return c.json({ success: false, error: 'Failed to get ElevenLabs signed URL' }, 500);
+    }
+    
+    const { signed_url } = await response.json();
+    
+    return c.json({ 
+      success: true, 
+      session_id,
+      signed_url,
+      agent_id,
+      scenario,
+      message: 'Connect to signed_url via WebSocket to start the call'
+    });
+  } catch (error) {
+    console.error('Error in POST /coldcall/start:', error);
+    return c.json({ success: false, error: 'Failed to start call session' }, 500);
+  }
+});
+
+// POST /api/coldcall/end - End call, save transcript, and score performance
+app.post('/coldcall/end', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      session_id: string;
+      clerk_id: string;
+      scenario_id: string;
+      transcript: any[];
+      duration_seconds: number;
+      outcome: 'success' | 'partial' | 'failure';
+    };
+    
+    const { session_id, clerk_id, scenario_id, transcript, duration_seconds, outcome } = body;
+    
+    if (!session_id || !clerk_id || !scenario_id) {
+      return c.json({ success: false, error: 'session_id, clerk_id, and scenario_id are required' }, 400);
+    }
+    
+    // Score the call using AI
+    const score_result = await scoreCallWithAI(c.env, {
+      scenario_id,
+      transcript,
+      outcome,
+      duration_seconds
+    });
+    
+    // Get scenario for level info
+    const scenario = getScenarioById(c.env, scenario_id);
+    const level = scenario?.level || 1;
+    
+    // Calculate XP based on level and score
+    const base_xp = [100, 150, 200, 250, 300][level - 1] || 100;
+    const xp_earned = Math.round(base_xp * (score_result.score / 100));
+    
+    // Update session with results
+    const db = c.env.DB;
+    
+    await db.prepare(`
+      UPDATE sessions 
+      SET score = ?,
+          time_seconds = ?,
+          answers = ?,
+          completed_at = datetime('now')
+      WHERE id = ?
+    `).bind(
+      score_result.score,
+      duration_seconds,
+      JSON.stringify({
+        transcript,
+        feedback: score_result.feedback,
+        outcome
+      }),
+      session_id
+    ).run();
+    
+    // Update or create progress record
+    const progressResult = await db.prepare(
+      'SELECT * FROM progress WHERE clerk_id = ? AND simulator = ?'
+    ).bind(clerk_id, 'coldcall').first();
+    
+    if (progressResult) {
+      await db.prepare(`
+        UPDATE progress
+        SET total_sessions = total_sessions + 1,
+            best_score = MAX(best_score, ?),
+            updated_at = datetime('now')
+        WHERE clerk_id = ? AND simulator = ?
+      `).bind(score_result.score, clerk_id, 'coldcall').run();
+    } else {
+      await db.prepare(`
+        INSERT INTO progress (id, clerk_id, simulator, current_level, total_sessions, best_score, completed_levels, badges)
+        VALUES (?, ?, 'coldcall', 1, 1, ?, '[]', '[]')
+      `).bind(crypto.randomUUID(), clerk_id, score_result.score).run();
+    }
+    
+    // Update user's total XP
+    await db.prepare(`
+      UPDATE users 
+      SET total_xp = total_xp + ?,
+          updated_at = datetime('now')
+      WHERE clerk_id = ?
+    `).bind(xp_earned, clerk_id).run();
+    
+    return c.json({
+      success: true,
+      score: score_result.score,
+      xp_earned,
+      feedback: score_result.feedback
+    });
+  } catch (error) {
+    console.error('Error in POST /coldcall/end:', error);
+    return c.json({ success: false, error: 'Failed to end call session' }, 500);
+  }
+});
+
+// GET /api/coldcall/progress - Get user's cold call progress
+app.get('/coldcall/progress', async (c) => {
+  try {
+    const clerk_id = c.req.query('clerkId');
+    
+    if (!clerk_id) {
+      return c.json({ success: false, error: 'clerkId is required' }, 400);
+    }
+    
+    const db = c.env.DB;
+    
+    // Get progress
+    const progress = await db.prepare(
+      'SELECT * FROM progress WHERE clerk_id = ? AND simulator = ?'
+    ).bind(clerk_id, 'coldcall').first();
+    
+    // Get recent sessions
+    const sessionsResult = await db.prepare(`
+      SELECT id, level, score, time_seconds, completed_at
+      FROM sessions
+      WHERE clerk_id = ? AND simulator = 'coldcall' AND score IS NOT NULL
+      ORDER BY completed_at DESC
+      LIMIT 10
+    `).bind(clerk_id).all();
+    
+    return c.json({
+      success: true,
+      progress: progress || { total_sessions: 0, best_score: 0 },
+      recent_sessions: sessionsResult.results || []
+    });
+  } catch (error) {
+    console.error('Error in GET /coldcall/progress:', error);
+    return c.json({ success: false, error: 'Failed to get progress' }, 500);
+  }
+});
+
+// ====================
+// COLD CALL SCENARIOS ROUTES (Legacy)
 // ====================
 
 // GET /api/scenarios - Get all cold call scenarios
@@ -1461,18 +1712,102 @@ app.get('/seed-scenarios', async (c) => {
 // RCA DETECTIVE ROUTES
 // ====================
 
+// GET /api/seed-rca - Initialize and seed RCA tables
+app.get('/seed-rca', async (c) => {
+  try {
+    const db = c.env.DB;
+    
+    // Create rca_cases table
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS rca_cases (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        difficulty TEXT DEFAULT 'beginner',
+        initial_problem TEXT NOT NULL,
+        metric_name TEXT NOT NULL,
+        metric_drop TEXT NOT NULL,
+        time_period TEXT,
+        available_data TEXT,
+        root_cause TEXT NOT NULL,
+        correct_fix TEXT NOT NULL,
+        xp_reward INTEGER DEFAULT 200,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+    
+    // Create rca_sessions table
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS rca_sessions (
+        id TEXT PRIMARY KEY,
+        clerk_id TEXT NOT NULL,
+        case_id TEXT NOT NULL,
+        status TEXT DEFAULT 'in_progress',
+        data_requests_made TEXT DEFAULT '[]',
+        five_whys TEXT,
+        fishbone TEXT,
+        submitted_root_cause TEXT,
+        submitted_reasoning TEXT,
+        score INTEGER,
+        feedback TEXT,
+        time_seconds INTEGER,
+        started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT
+      )
+    `).run();
+    
+    // Seed RCA cases
+    await db.prepare(`
+      INSERT OR REPLACE INTO rca_cases (id, title, difficulty, initial_problem, metric_name, metric_drop, time_period, available_data, root_cause, correct_fix, xp_reward)
+      VALUES
+      ('dau-drop-001', 'The DAU Mystery', 'beginner', 'Daily Active Users dropped 40% overnight', 'Daily Active Users', '-40%', 'Jan 15-16, 2024', 
+       '[{"id":"user_segments","name":"User Segments"},{"id":"feature_usage","name":"Feature Usage"},{"id":"error_logs","name":"Error Logs"},{"id":"deployment_history","name":"Deployment History"},{"id":"device_breakdown","name":"Device Breakdown"}]',
+       'Android SDK update in v2.3.1 broke login authentication for Android users',
+       'Rollback v2.3.1 or hotfix the Android auth issue immediately',
+       200),
+      ('revenue-dip-001', 'Revenue Riddle', 'intermediate', 'Revenue dropped 15% despite more purchases', 'Revenue', '-15%', 'Dec-Jan', 
+       '[{"id":"conversion_funnel","name":"Conversion Funnel"},{"id":"pricing_data","name":"Pricing Data"},{"id":"product_mix","name":"Product Mix"},{"id":"promo_codes","name":"Promo Codes"}]',
+       'HOLIDAY25 promo code (25% off) was left active past Dec 31 and is being used on 80% of orders',
+       'Disable HOLIDAY25 promo code immediately and review promo code automation',
+       250),
+      ('churn-spike-001', 'Churn Challenge', 'advanced', 'Customer churn spiked 300% in January', 'Churn Rate', '+300%', 'January 2024', 
+       '[{"id":"churned_customer_list","name":"Churned Customers"},{"id":"support_tickets","name":"Support Tickets"},{"id":"pricing_tier_breakdown","name":"Pricing Breakdown"},{"id":"competitor_mentions","name":"Competitor Analysis"},{"id":"nps_scores","name":"NPS Scores"}]',
+       'Competitor RivalCo launched a free tier on Jan 5, causing 70% of Starter plan customers to churn',
+       'Introduce a competitive free tier or adjust Starter plan pricing/features to match market',
+       300)
+    `).run();
+    
+    return c.json({ success: true, message: 'RCA tables and cases seeded successfully' });
+  } catch (error) {
+    console.error('Error seeding RCA:', error);
+    return c.json({ success: false, error: String(error) }, 500);
+  }
+});
+
 // GET /api/rca/cases - Get all RCA cases (without solutions)
 app.get('/rca/cases', async (c) => {
   try {
     const db = c.env.DB;
     
     const result = await db.prepare(`
-      SELECT id, title, difficulty, category, description, time_limit_minutes, xp_reward
+      SELECT id, title, difficulty, initial_problem, 
+             metric_name, metric_drop, time_period, xp_reward
       FROM rca_cases
-      ORDER BY difficulty, id
+      ORDER BY 
+        CASE difficulty 
+          WHEN 'beginner' THEN 1 
+          WHEN 'intermediate' THEN 2 
+          WHEN 'advanced' THEN 3 
+        END,
+        id
     `).all();
     
-    return c.json({ success: true, cases: result.results || [] });
+    // Map to frontend format with level_number
+    const cases = (result.results || []).map((caseRow: any, index: number) => ({
+      ...caseRow,
+      level_number: index + 1, // Sequential level numbering
+    }));
+    
+    return c.json({ success: true, cases });
   } catch (error) {
     console.error('Error in GET /rca/cases:', error);
     return c.json({ success: false, error: 'Failed to get cases' }, 500);
@@ -1665,7 +2000,10 @@ app.post('/rca/submit', async (c) => {
     const body = await c.req.json();
     const { clerkId, caseId, investigationState } = body;
     
+    console.log('RCA submit received:', { clerkId, caseId, hasState: !!investigationState });
+    
     if (!clerkId || !caseId || !investigationState || !investigationState.hypothesis) {
+      console.error('Missing required fields:', { clerkId: !!clerkId, caseId: !!caseId, investigationState: !!investigationState, hypothesis: !!investigationState?.hypothesis });
       return c.json({ success: false, error: 'Missing required fields' }, 400);
     }
     
@@ -1688,9 +2026,6 @@ app.post('/rca/submit', async (c) => {
     if (!caseResult) {
       return c.json({ success: false, error: 'Case not found' }, 404);
     }
-    
-    // Import scoring function
-    const { scoreWithAI } = await import('./lib/scoring');
     
     // Score with AI
     const scoringResult = await scoreWithAI(c.env, {
@@ -1780,7 +2115,13 @@ app.post('/rca/submit', async (c) => {
     });
   } catch (error) {
     console.error('Error in POST /rca/submit:', error);
-    return c.json({ success: false, error: 'Failed to submit analysis' }, 500);
+    console.error('Error details:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    return c.json({ 
+      success: false, 
+      error: 'Failed to submit analysis',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 
