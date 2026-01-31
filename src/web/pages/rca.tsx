@@ -55,6 +55,11 @@ const CaseCard = ({ rcaCase, isLocked, isCompleted }: CaseCardProps) => {
         </span>
       </div>
 
+      {/* Company name */}
+      <p className="font-inter text-xs text-teal font-600 mb-1">
+        {rcaCase.company_name}
+      </p>
+
       {/* Title */}
       <h3 className="font-nunito font-700 text-xl text-charcoal mb-2">
         {rcaCase.title}

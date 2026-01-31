@@ -146,6 +146,9 @@ const RCAInvestigation = () => {
             <div className="flex items-start gap-4">
               <PraxyMascot size={60} expression="happy" />
               <div className="flex-1">
+                <p className="font-inter text-sm text-teal font-600 mb-1">
+                  {rcaCase.company_name}
+                </p>
                 <h2 className="font-nunito font-700 text-2xl text-charcoal mb-2">
                   {rcaCase.title}
                 </h2>

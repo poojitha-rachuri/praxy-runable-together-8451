@@ -1759,6 +1759,7 @@ app.get('/seed-rca', async (c) => {
       CREATE TABLE IF NOT EXISTS rca_cases (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
+        company_name TEXT NOT NULL,
         difficulty TEXT DEFAULT 'beginner',
         description TEXT NOT NULL,
         metric_name TEXT NOT NULL,
@@ -1792,21 +1793,21 @@ app.get('/seed-rca', async (c) => {
       )
     `).run();
     
-    // Seed RCA cases
+    // Seed RCA cases with company names
     await db.prepare(`
-      INSERT OR REPLACE INTO rca_cases (id, title, difficulty, description, metric_name, metric_drop, time_period, available_data, root_cause, correct_fix, xp_reward)
+      INSERT OR REPLACE INTO rca_cases (id, title, company_name, difficulty, description, metric_name, metric_drop, time_period, available_data, root_cause, correct_fix, xp_reward)
       VALUES
-      ('dau-drop-001', 'The DAU Mystery', 'beginner', 'Daily Active Users dropped 40% overnight', 'Daily Active Users', '-40%', 'Jan 15-16, 2024', 
+      ('dau-drop-001', 'The DAU Mystery', 'Swiggy', 'beginner', 'Daily Active Users dropped 40% overnight', 'Daily Active Users', '-40%', 'Jan 15-16, 2024', 
        '[{"id":"user_segments","name":"User Segments"},{"id":"feature_usage","name":"Feature Usage"},{"id":"error_logs","name":"Error Logs"},{"id":"deployment_history","name":"Deployment History"},{"id":"device_breakdown","name":"Device Breakdown"}]',
        'Android SDK update in v2.3.1 broke login authentication for Android users',
        'Rollback v2.3.1 or hotfix the Android auth issue immediately',
        200),
-      ('revenue-dip-001', 'Revenue Riddle', 'intermediate', 'Revenue dropped 15% despite more purchases', 'Revenue', '-15%', 'Dec-Jan', 
+      ('revenue-dip-001', 'Revenue Riddle', 'Meesho', 'intermediate', 'Revenue dropped 15% despite more purchases', 'Revenue', '-15%', 'Dec 2024 - Jan 2025', 
        '[{"id":"conversion_funnel","name":"Conversion Funnel"},{"id":"pricing_data","name":"Pricing Data"},{"id":"product_mix","name":"Product Mix"},{"id":"promo_codes","name":"Promo Codes"}]',
        'HOLIDAY25 promo code (25% off) was left active past Dec 31 and is being used on 80% of orders',
        'Disable HOLIDAY25 promo code immediately and review promo code automation',
        250),
-      ('churn-spike-001', 'Churn Challenge', 'advanced', 'Customer churn spiked 300% in January', 'Churn Rate', '+300%', 'January 2024', 
+      ('churn-spike-001', 'Churn Challenge', 'Freshworks', 'advanced', 'Customer churn spiked 300% in January', 'Churn Rate', '+300%', 'January 2025', 
        '[{"id":"churned_customer_list","name":"Churned Customers"},{"id":"support_tickets","name":"Support Tickets"},{"id":"pricing_tier_breakdown","name":"Pricing Breakdown"},{"id":"competitor_mentions","name":"Competitor Analysis"},{"id":"nps_scores","name":"NPS Scores"}]',
        'Competitor RivalCo launched a free tier on Jan 5, causing 70% of Starter plan customers to churn',
        'Introduce a competitive free tier or adjust Starter plan pricing/features to match market',
@@ -1825,49 +1826,8 @@ app.get('/rca/cases', async (c) => {
   try {
     const db = c.env.DB;
     
-    // Drop and recreate table to ensure correct schema
-    await db.prepare(`DROP TABLE IF EXISTS rca_cases`).run();
-    
-    await db.prepare(`
-      CREATE TABLE IF NOT EXISTS rca_cases (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        difficulty TEXT DEFAULT 'beginner',
-        description TEXT NOT NULL,
-        metric_name TEXT NOT NULL,
-        metric_drop TEXT NOT NULL,
-        time_period TEXT,
-        available_data TEXT,
-        root_cause TEXT NOT NULL,
-        correct_fix TEXT NOT NULL,
-        xp_reward INTEGER DEFAULT 200,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `).run();
-    
-    // Seed cases
-    await db.prepare(`
-      INSERT OR REPLACE INTO rca_cases (id, title, difficulty, description, metric_name, metric_drop, time_period, available_data, root_cause, correct_fix, xp_reward)
-      VALUES
-      ('dau-drop-001', 'The DAU Mystery', 'beginner', 'Daily Active Users dropped 40% overnight', 'Daily Active Users', '-40%', 'Jan 15-16, 2024', 
-       '[{"id":"user_segments","name":"User Segments"},{"id":"feature_usage","name":"Feature Usage"},{"id":"error_logs","name":"Error Logs"},{"id":"deployment_history","name":"Deployment History"},{"id":"device_breakdown","name":"Device Breakdown"}]',
-       'Android SDK update in v2.3.1 broke login authentication for Android users',
-       'Rollback v2.3.1 or hotfix the Android auth issue immediately',
-       200),
-      ('revenue-dip-001', 'Revenue Riddle', 'intermediate', 'Revenue dropped 15% despite more purchases', 'Revenue', '-15%', 'Dec-Jan', 
-       '[{"id":"conversion_funnel","name":"Conversion Funnel"},{"id":"pricing_data","name":"Pricing Data"},{"id":"product_mix","name":"Product Mix"},{"id":"promo_codes","name":"Promo Codes"}]',
-       'HOLIDAY25 promo code (25% off) was left active past Dec 31 and is being used on 80% of orders',
-       'Disable HOLIDAY25 promo code immediately and review promo code automation',
-       250),
-      ('churn-spike-001', 'Churn Challenge', 'advanced', 'Customer churn spiked 300% in January', 'Churn Rate', '+300%', 'January 2024', 
-       '[{"id":"churned_customer_list","name":"Churned Customers"},{"id":"support_tickets","name":"Support Tickets"},{"id":"pricing_tier_breakdown","name":"Pricing Breakdown"},{"id":"competitor_mentions","name":"Competitor Analysis"},{"id":"nps_scores","name":"NPS Scores"}]',
-       'Competitor RivalCo launched a free tier on Jan 5, causing 70% of Starter plan customers to churn',
-       'Introduce a competitive free tier or adjust Starter plan pricing/features to match market',
-       300)
-    `).run();
-    
     const result = await db.prepare(`
-      SELECT id, title, difficulty, description, 
+      SELECT id, title, company_name, difficulty, description, 
              metric_name, metric_drop, time_period, xp_reward
       FROM rca_cases
       ORDER BY 
@@ -1883,6 +1843,7 @@ app.get('/rca/cases', async (c) => {
     const cases = (result.results || []).map((caseRow: any, index: number) => ({
       id: caseRow.id,
       title: caseRow.title,
+      company_name: caseRow.company_name,
       difficulty: caseRow.difficulty,
       initial_problem: caseRow.description,
       metric_name: caseRow.metric_name,
@@ -1906,7 +1867,7 @@ app.get('/rca/cases/:id', async (c) => {
     const caseId = c.req.param('id');
     
     const result = await db.prepare(`
-      SELECT id, title, difficulty, description,
+      SELECT id, title, company_name, difficulty, description,
              metric_name, metric_drop, time_period, available_data, 
              root_cause, correct_fix, xp_reward
       FROM rca_cases
@@ -1917,16 +1878,50 @@ app.get('/rca/cases/:id', async (c) => {
       return c.json({ success: false, error: 'Case not found' }, 404);
     }
     
+    // Mock data mapping for each case's data sources
+    const mockDataMapping: Record<string, Record<string, any>> = {
+      'dau-drop-001': {
+        'user_segments': { power_users: "-5%", casual: "-45%", new: "-12%" },
+        'feature_usage': { login_attempts: "+300%", login_success: "-60%", home_screen: "-40%" },
+        'error_logs': { auth_failures: 12453, api_timeouts: 23, null_errors: 156, peak_time: "11:30 PM" },
+        'deployment_history': { latest: "v2.3.1", deployed_at: "11:00 PM Jan 15", changes: "Auth flow refactor, Android SDK update" },
+        'device_breakdown': { iOS: "-3%", Android: "-41%", Web: "+2%" },
+      },
+      'revenue-dip-001': {
+        'conversion_funnel': { visitors: "+10%", add_to_cart: "+15%", checkout: "+18%", purchase: "+22%" },
+        'pricing_data': { avg_price: "No change", discounts_applied: "+340%" },
+        'product_mix': { high_margin: "-5%", low_margin: "+25%" },
+        'promo_codes': { HOLIDAY25: "80% of orders", intended_end: "Dec 31", status: "Still active", discount: "25% off" },
+      },
+      'churn-spike-001': {
+        'churned_customer_list': { total: 47, starter_plan: "70%", growth_plan: "20%", enterprise: "10%" },
+        'support_tickets': { pricing_complaints: "+250%", feature_requests: "normal", bugs: "normal" },
+        'pricing_tier_breakdown': { starter_churn: "12%", growth_churn: "3%", enterprise_churn: "1%" },
+        'competitor_mentions': { increase: "+400%", competitor: "RivalCo", their_move: "Launched free tier Jan 5" },
+        'nps_scores': { starter: 12, growth: 45, enterprise: 62, starter_previous: 45 },
+      },
+    };
+    
+    // Parse available_data and inject the actual data content
+    const availableDataRaw = result.available_data ? JSON.parse(result.available_data) : [];
+    const caseDataMapping = mockDataMapping[caseId] || {};
+    const availableDataWithContent = availableDataRaw.map((source: { id: string; name: string }) => ({
+      id: source.id,
+      name: source.name,
+      data: caseDataMapping[source.id] || { info: "Data not available" },
+    }));
+    
     // Parse JSON fields and map to frontend format
     const caseData = {
       id: result.id,
       level_number: parseInt(result.id.split('-')[2]) || 1,
       title: result.title,
+      company_name: result.company_name,
       initial_problem: result.description,
       metric_name: result.metric_name,
       metric_drop: result.metric_drop,
       time_period: result.time_period,
-      available_data: result.available_data ? JSON.parse(result.available_data) : [],
+      available_data: availableDataWithContent,
       root_cause: result.root_cause,
       correct_fix: result.correct_fix,
       difficulty: result.difficulty,

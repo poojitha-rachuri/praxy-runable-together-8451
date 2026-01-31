@@ -21,6 +21,7 @@ export interface RCACase {
   id: string;
   level_number: number;
   title: string;
+  company_name: string;
   initial_problem: string;
   metric_name: string;
   metric_drop: string;
