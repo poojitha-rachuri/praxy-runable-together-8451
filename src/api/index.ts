@@ -1558,6 +1558,41 @@ app.post('/cold-call/sessions', async (c) => {
   }
 });
 
+// GET /api/cold-call/sessions - Get all sessions for a user
+app.get('/cold-call/sessions', async (c) => {
+  try {
+    const db = c.env.DB;
+    const clerkId = c.req.query('clerkId');
+    
+    if (!clerkId) {
+      return c.json({ success: false, error: 'clerkId is required' }, 400);
+    }
+    
+    const result = await db.prepare(`
+      SELECT 
+        id,
+        scenario_id,
+        duration_seconds,
+        overall_score,
+        opening_score,
+        value_score,
+        objection_score,
+        control_score,
+        close_score,
+        created_at
+      FROM cold_call_sessions 
+      WHERE clerk_id = ?
+      ORDER BY created_at DESC
+      LIMIT 50
+    `).bind(clerkId).all();
+    
+    return c.json({ success: true, sessions: result.results });
+  } catch (error) {
+    console.error('Error in GET /cold-call/sessions:', error);
+    return c.json({ success: false, error: 'Failed to get sessions' }, 500);
+  }
+});
+
 // GET /api/cold-call/sessions/:id - Get a specific session
 app.get('/cold-call/sessions/:id', async (c) => {
   try {

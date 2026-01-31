@@ -3,8 +3,8 @@ import { useParams, useLocation } from 'wouter';
 import { useUser } from '@clerk/clerk-react';
 import { useConversation } from '@elevenlabs/react';
 import { FiPhoneOff, FiMic, FiVolume2 } from 'react-icons/fi';
-import { getScenarioById, type Scenario } from '../lib/coldcall';
-import { setClerkId } from '../lib/api';
+import { getScenarioById, saveCallSessionToBackend, type Scenario } from '../lib/coldcall';
+import { setClerkId, getClerkId } from '../lib/api';
 
 // Hardcoded scenarios for fallback
 const hardcodedScenarios: Record<string, Scenario> = {
@@ -265,23 +265,48 @@ const ColdCallSession = () => {
       ? Math.round((analysis.opening + analysis.value + analysis.objection + analysis.control + analysis.close) / 5)
       : Math.min(15, messages.length * 5);
     
-    // Store result for feedback page
+    const scoreData = {
+      overall: overallScore,
+      opening: analysis.opening,
+      value: analysis.value,
+      objection: analysis.objection,
+      control: analysis.control,
+      close: analysis.close,
+      highlights: analysis.highlights,
+      improvements: analysis.improvements,
+    };
+    
+    // Store result for feedback page (local fallback)
     sessionStorage.setItem('coldcall_result', JSON.stringify({
       scenarioId: scenario.id,
       transcript: messages,
       duration,
       outcome: analysis.outcome,
-      score: {
-        overall: overallScore,
-        opening: analysis.opening,
-        value: analysis.value,
-        objection: analysis.objection,
-        control: analysis.control,
-        close: analysis.close,
-        highlights: analysis.highlights,
-        improvements: analysis.improvements,
-      },
+      score: scoreData,
     }));
+    
+    // Save to backend database for history
+    const clerkId = getClerkId();
+    if (clerkId) {
+      try {
+        await saveCallSessionToBackend({
+          clerkId,
+          scenarioId: scenario.id,
+          transcript: messages,
+          durationSeconds: duration,
+          overallScore,
+          openingScore: analysis.opening,
+          valueScore: analysis.value,
+          objectionScore: analysis.objection,
+          controlScore: analysis.control,
+          closeScore: analysis.close,
+          highlights: analysis.highlights,
+          improvements: analysis.improvements,
+        });
+      } catch (error) {
+        console.error('Failed to save session to backend:', error);
+      }
+    }
     
     navigate(`/cold-call/${scenarioId}/feedback`);
   };

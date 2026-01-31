@@ -221,6 +221,35 @@ export const getColdCallProgress = async (): Promise<{ completedScenarios: strin
   return { completedScenarios: Array.from(new Set(completedScenarios)) };
 };
 
+// Save call session to backend for history
+export const saveCallSessionToBackend = async (data: {
+  clerkId: string;
+  scenarioId: string;
+  transcript: TranscriptMessage[];
+  durationSeconds: number;
+  overallScore: number;
+  openingScore: number;
+  valueScore: number;
+  objectionScore: number;
+  controlScore: number;
+  closeScore: number;
+  highlights: Array<{ text: string; type: 'good' | 'improve' }>;
+  improvements: string[];
+}): Promise<{ success: boolean; sessionId?: string }> => {
+  const result = await apiFetch<{ success: boolean; session?: { id: string } }>(
+    '/cold-call/sessions',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  );
+
+  return {
+    success: result?.success || false,
+    sessionId: result?.session?.id,
+  };
+};
+
 // Get all cold call sessions for the user (call history)
 export const getColdCallSessions = async (): Promise<ColdCallSession[]> => {
   const clerkId = getClerkId();
@@ -232,23 +261,57 @@ export const getColdCallSessions = async (): Promise<ColdCallSession[]> => {
     recent_sessions: any[];
   }>(`/coldcall/progress?clerkId=${clerkId}`);
 
-  // Map backend sessions to ColdCallSession format
-  return (result?.recent_sessions || []).map((s: any) => ({
-    id: s.id,
-    clerk_id: clerkId,
-    scenario_id: `cc-${s.level}`,
-    transcript: [],
-    duration_seconds: s.duration_seconds || 0,
-    overall_score: s.score || 0,
-    opening_score: 0,
-    value_score: 0,
-    objection_score: 0,
-    control_score: 0,
-    close_score: 0,
-    highlights: [],
-    improvements: [],
-    completed_at: s.completed_at || new Date().toISOString(),
-  }));
+  // Also try to get from cold_call_sessions table
+  const coldCallResult = await apiFetch<{
+    success: boolean;
+    sessions: any[];
+  }>(`/cold-call/sessions?clerkId=${clerkId}`);
+  
+  // Combine both sources
+  const sessions: ColdCallSession[] = [];
+  
+  // Add from sessions table (legacy)
+  (result?.recent_sessions || []).forEach((s: any) => {
+    sessions.push({
+      id: s.id,
+      clerk_id: clerkId,
+      scenario_id: `cc-${s.level}`,
+      transcript: [],
+      duration_seconds: s.time_seconds || 0,
+      overall_score: s.score || 0,
+      opening_score: 0,
+      value_score: 0,
+      objection_score: 0,
+      control_score: 0,
+      close_score: 0,
+      highlights: [],
+      improvements: [],
+      completed_at: s.completed_at || new Date().toISOString(),
+    });
+  });
+  
+  // Add from cold_call_sessions table (new)
+  (coldCallResult?.sessions || []).forEach((s: any) => {
+    sessions.push({
+      id: s.id,
+      clerk_id: s.clerk_id,
+      scenario_id: s.scenario_id,
+      transcript: s.transcript ? (typeof s.transcript === 'string' ? JSON.parse(s.transcript) : s.transcript) : [],
+      duration_seconds: s.duration_seconds || 0,
+      overall_score: s.overall_score || 0,
+      opening_score: s.opening_score || 0,
+      value_score: s.value_score || 0,
+      objection_score: s.objection_score || 0,
+      control_score: s.control_score || 0,
+      close_score: s.close_score || 0,
+      highlights: s.highlights ? (typeof s.highlights === 'string' ? JSON.parse(s.highlights) : s.highlights) : [],
+      improvements: s.improvements ? (typeof s.improvements === 'string' ? JSON.parse(s.improvements) : s.improvements) : [],
+      completed_at: s.created_at || s.completed_at || new Date().toISOString(),
+    });
+  });
+  
+  // Sort by date descending
+  return sessions.sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
 };
 
 // ====================
