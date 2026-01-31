@@ -1,6 +1,7 @@
 import { Link, useSearch } from "wouter";
 import PraxyMascot from "../components/praxy-mascot";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { updateProgress, saveSession } from "../lib/api";
 
 // Confetti piece component
 const ConfettiPiece = ({ delay, duration, left, color, size }: { delay: number; duration: number; left: number; color: string; size: number }) => (
@@ -66,6 +67,8 @@ const BalanceSheetLevel1Complete = () => {
   const score = parseInt(params.get("score") || "4", 10);
   const total = parseInt(params.get("total") || "5", 10);
   const xp = parseInt(params.get("xp") || "150", 10);
+  const timeParam = params.get("time");
+  const timeSeconds = timeParam ? parseInt(timeParam, 10) : undefined;
   
   const percentage = Math.round((score / total) * 100);
   const isPassing = percentage >= 60;
@@ -73,25 +76,55 @@ const BalanceSheetLevel1Complete = () => {
   const [showConfetti, setShowConfetti] = useState(true);
   const [confettiPieces] = useState(() => generateConfetti(50));
   const [animationStarted, setAnimationStarted] = useState(false);
+  const [dataSaved, setDataSaved] = useState(false);
+  const saveAttempted = useRef(false);
   
   // Animated counters
   const animatedScore = useAnimatedCounter(score, 1200, animationStarted);
   const animatedXP = useAnimatedCounter(xp, 1500, animationStarted);
   const animatedPercentage = useAnimatedCounter(percentage, 1200, animationStarted);
 
-  // Start animations after mount and save completion to localStorage
+  // Start animations after mount and save completion to API and localStorage
   useEffect(() => {
     const timer = setTimeout(() => {
       setAnimationStarted(true);
     }, 500);
 
-    // Save completion to localStorage
-    if (isPassing) {
-      localStorage.setItem('praxy_level1_complete', 'true');
-      localStorage.setItem('praxy_level1_score', score.toString());
-      localStorage.setItem('praxy_level1_xp', xp.toString());
-      localStorage.setItem('praxy_current_level', '2');
-    }
+    // Save completion to API and localStorage
+    const saveCompletion = async () => {
+      if (saveAttempted.current) return;
+      saveAttempted.current = true;
+
+      // Always save to localStorage first as backup
+      if (isPassing) {
+        localStorage.setItem('praxy_level1_complete', 'true');
+        localStorage.setItem('praxy_level1_score', score.toString());
+        localStorage.setItem('praxy_level1_xp', xp.toString());
+        localStorage.setItem('praxy_current_level', '2');
+        
+        const currentTotalXp = parseInt(localStorage.getItem('praxy_total_xp') || '0', 10);
+        localStorage.setItem('praxy_total_xp', (currentTotalXp + xp).toString());
+      }
+
+      // Then save to API
+      try {
+        // Save the quiz session
+        await saveSession(1, score, total, xp, timeSeconds, 'balance-sheet');
+        
+        // Update progress if passing
+        if (isPassing) {
+          await updateProgress(1, 'Survivor Badge', xp, 'balance-sheet');
+        }
+        
+        setDataSaved(true);
+        console.log('Progress saved to API successfully');
+      } catch (error) {
+        console.error('Failed to save progress to API:', error);
+        // localStorage backup already done above
+      }
+    };
+
+    saveCompletion();
 
     // Stop confetti after a while
     const confettiTimer = setTimeout(() => {
@@ -102,7 +135,7 @@ const BalanceSheetLevel1Complete = () => {
       clearTimeout(timer);
       clearTimeout(confettiTimer);
     };
-  }, [isPassing, score, xp]);
+  }, [isPassing, score, xp, total, timeSeconds]);
 
   const getMessage = () => {
     if (percentage === 100) {
@@ -269,7 +302,9 @@ const BalanceSheetLevel1Complete = () => {
           <div className="grid grid-cols-3 gap-4 mb-6 opacity-0 animate-fade-in-up delay-400">
             <div className="bg-white rounded-[16px] p-4 shadow-warm text-center">
               <div className="text-2xl mb-2">⏱️</div>
-              <div className="font-nunito font-bold text-xl text-charcoal">2m 34s</div>
+              <div className="font-nunito font-bold text-xl text-charcoal">
+                {timeSeconds ? `${Math.floor(timeSeconds / 60)}m ${timeSeconds % 60}s` : '2m 34s'}
+              </div>
               <div className="font-inter text-xs text-charcoal/60">Time taken</div>
             </div>
             <div className="bg-white rounded-[16px] p-4 shadow-warm text-center">
@@ -356,6 +391,18 @@ const BalanceSheetLevel1Complete = () => {
               </div>
             </div>
           </div>
+
+          {/* Sync indicator */}
+          {dataSaved && (
+            <div className="text-center mb-4 opacity-0 animate-fade-in-up delay-700">
+              <span className="inline-flex items-center gap-2 text-sm text-mint/70">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Progress saved
+              </span>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="space-y-3 opacity-0 animate-fade-in-up delay-700">

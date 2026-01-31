@@ -1,6 +1,7 @@
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
 import PraxyMascot from "../components/praxy-mascot";
-import { useEffect, useState } from "react";
+import { getProgress, getStats } from "../lib/api";
 
 interface LevelCardProps {
   levelNumber: number;
@@ -146,30 +147,51 @@ const levelsData = [
   { title: "Full Analysis", question: "Put it all together" },
 ];
 
+// Skeleton for loading state
+const LevelCardSkeleton = () => (
+  <div className="bg-white/50 rounded-[16px] p-5 md:p-6 animate-pulse">
+    <div className="flex items-start gap-4">
+      <div className="w-12 h-12 rounded-full bg-charcoal/10" />
+      <div className="flex-1">
+        <div className="h-6 w-3/4 bg-charcoal/10 rounded mb-2" />
+        <div className="h-4 w-1/2 bg-charcoal/10 rounded mb-2" />
+        <div className="h-4 w-full bg-charcoal/10 rounded" />
+      </div>
+    </div>
+  </div>
+);
+
+interface Progress {
+  currentLevel: number;
+  completedLevels: number[];
+  badges: string[];
+}
+
 const BalanceSheet = () => {
-  const [currentLevel, setCurrentLevel] = useState(1);
-  const [completedLevels, setCompletedLevels] = useState<number[]>([]);
-
-  // Load progress from localStorage
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [totalXP, setTotalXP] = useState(0);
+  const [loading, setLoading] = useState(true);
+  
   useEffect(() => {
-    const savedCurrentLevel = localStorage.getItem('praxy_current_level');
-    const isLevel1Complete = localStorage.getItem('praxy_level1_complete');
-    
-    if (savedCurrentLevel) {
-      setCurrentLevel(parseInt(savedCurrentLevel, 10));
-    }
-    
-    if (isLevel1Complete === 'true') {
-      setCompletedLevels([1]);
-      if (!savedCurrentLevel) {
-        setCurrentLevel(2);
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [progressData, statsData] = await Promise.all([
+          getProgress(),
+          getStats()
+        ]);
+        setProgress(progressData);
+        setTotalXP(statsData.totalXp);
+      } catch (error) {
+        console.error('Failed to load data:', error);
       }
-    }
+      setLoading(false);
+    };
+    loadData();
   }, []);
-
-  const totalXP = completedLevels.length > 0 
-    ? parseInt(localStorage.getItem('praxy_level1_xp') || '0', 10) 
-    : 0;
+  
+  const currentLevel = progress?.currentLevel || 1;
+  const completedLevels = progress?.completedLevels || [];
 
   return (
     <div className="min-h-screen bg-cream">
@@ -285,30 +307,37 @@ const BalanceSheet = () => {
               
               {/* Levels */}
               <div className="space-y-4">
-                {levelsData.map((level, index) => {
-                  const levelNumber = index + 1;
-                  const isCompleted = completedLevels.includes(levelNumber);
-                  const isCurrent = levelNumber === currentLevel;
-                  const isLocked = levelNumber > currentLevel && !isCompleted;
-                  
-                  return (
-                    <div 
-                      key={levelNumber} 
-                      className={`opacity-0 animate-fade-in-up`}
-                      style={{ animationDelay: `${150 + index * 50}ms` }}
-                    >
-                      <LevelCard
-                        levelNumber={levelNumber}
-                        title={level.title}
-                        concept={levelNumber <= 2 ? level.concept : undefined}
-                        question={level.question}
-                        isLocked={isLocked}
-                        isCurrent={isCurrent}
-                        isCompleted={isCompleted}
-                      />
-                    </div>
-                  );
-                })}
+                {loading ? (
+                  // Show skeletons while loading
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <LevelCardSkeleton key={index} />
+                  ))
+                ) : (
+                  levelsData.map((level, index) => {
+                    const levelNumber = index + 1;
+                    const isCompleted = completedLevels.includes(levelNumber);
+                    const isCurrent = levelNumber === currentLevel;
+                    const isLocked = levelNumber > currentLevel && !isCompleted;
+                    
+                    return (
+                      <div 
+                        key={levelNumber} 
+                        className={`opacity-0 animate-fade-in-up`}
+                        style={{ animationDelay: `${150 + index * 50}ms` }}
+                      >
+                        <LevelCard
+                          levelNumber={levelNumber}
+                          title={level.title}
+                          concept={levelNumber <= 2 ? level.concept : undefined}
+                          question={level.question}
+                          isLocked={isLocked}
+                          isCurrent={isCurrent}
+                          isCompleted={isCompleted}
+                        />
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>

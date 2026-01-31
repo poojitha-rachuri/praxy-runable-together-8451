@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import PraxyMascot from "../components/praxy-mascot";
+import { saveSession, updateProgress } from "../lib/api";
 
 // Types for quiz
 interface CompanyComparisonOption {
@@ -376,9 +377,13 @@ const BalanceSheetLevel1Quiz = () => {
   const [showFeedback, setShowFeedback] = useState(false);
   const [score, setScore] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  // Track quiz start time
+  const startTimeRef = useRef<number>(Date.now());
 
   const question = quizQuestions[currentQuestion];
-  const progress = ((currentQuestion + 1) / quizQuestions.length) * 100;
+  const progressPercent = ((currentQuestion + 1) / quizQuestions.length) * 100;
   const xpPerQuestion = 30;
 
   const handleSubmit = () => {
@@ -391,7 +396,7 @@ const BalanceSheetLevel1Quiz = () => {
     setShowFeedback(true);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     setShowFeedback(false);
     setSelectedAnswer(null);
     setShowHint(false);
@@ -399,9 +404,14 @@ const BalanceSheetLevel1Quiz = () => {
     if (currentQuestion < quizQuestions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
-      // Quiz complete - navigate to complete page
-      const totalXP = score * xpPerQuestion + (selectedAnswer === question.correctAnswer ? xpPerQuestion : 0);
-      setLocation(`/balance-sheet/level/1/complete?score=${score + (selectedAnswer === question.correctAnswer ? 1 : 0)}&total=${quizQuestions.length}&xp=${totalXP}`);
+      // Quiz complete - calculate final results
+      setSaving(true);
+      const finalScore = score + (selectedAnswer === question.correctAnswer ? 1 : 0);
+      const totalXP = finalScore * xpPerQuestion;
+      const timeSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
+      
+      // Navigate to complete page (saving happens there)
+      setLocation(`/balance-sheet/level/1/complete?score=${finalScore}&total=${quizQuestions.length}&xp=${totalXP}&time=${timeSeconds}`);
     }
   };
 
@@ -464,7 +474,7 @@ const BalanceSheetLevel1Quiz = () => {
           <div className="h-2 bg-charcoal/10 rounded-full overflow-hidden mb-4">
             <div
               className="h-full gradient-coral transition-all duration-500 ease-out rounded-full"
-              style={{ width: `${progress}%` }}
+              style={{ width: `${progressPercent}%` }}
             />
           </div>
 

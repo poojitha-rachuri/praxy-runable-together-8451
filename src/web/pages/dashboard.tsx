@@ -1,10 +1,21 @@
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
 import PraxyMascot from "../components/praxy-mascot";
+import { getStats } from "../lib/api";
 
 // Coming Soon Card Component
 interface ComingSoonCardProps {
   emoji: string;
   title: string;
+}
+
+interface Stats {
+  totalXp: number;
+  streakDays: number;
+  currentLevel: number;
+  completedLevels: number[];
+  badges: string[];
+  sessionsCount: number;
 }
 
 const ComingSoonCard = ({ emoji, title }: ComingSoonCardProps) => (
@@ -17,14 +28,43 @@ const ComingSoonCard = ({ emoji, title }: ComingSoonCardProps) => (
   </div>
 );
 
+// Skeleton loader for stats
+const StatsSkeleton = () => (
+  <div className="flex items-center gap-4 md:gap-6 animate-pulse">
+    <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full">
+      <div className="w-16 h-6 bg-charcoal/10 rounded" />
+    </div>
+    <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full">
+      <div className="w-20 h-6 bg-charcoal/10 rounded" />
+    </div>
+  </div>
+);
+
 const Dashboard = () => {
-  // Static progress data
-  const currentLevel = 1;
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadStats = async () => {
+      setLoading(true);
+      try {
+        const data = await getStats();
+        setStats(data);
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
+      setLoading(false);
+    };
+    loadStats();
+  }, []);
+  
+  // Computed values from stats
+  const currentLevel = stats?.currentLevel || 1;
   const totalLevels = 10;
-  const progressPercent = (currentLevel / totalLevels) * 100;
-  const xpEarned = 0;
-  const badges = 0;
-  const sessions = 0;
+  const xpEarned = stats?.totalXp || 0;
+  const badges = stats?.badges?.length || 0;
+  const sessions = stats?.sessionsCount || 0;
+  const streakDays = stats?.streakDays || 1;
 
   return (
     <div className="min-h-screen bg-cream">
@@ -47,16 +87,20 @@ const Dashboard = () => {
           </Link>
 
           {/* Stats on right */}
-          <div className="flex items-center gap-4 md:gap-6">
-            <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full shadow-warm">
-              <span className="text-lg">⭐</span>
-              <span className="font-inter font-600 text-charcoal text-sm md:text-base">450 XP</span>
+          {loading ? (
+            <StatsSkeleton />
+          ) : (
+            <div className="flex items-center gap-4 md:gap-6">
+              <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full shadow-warm">
+                <span className="text-lg">⭐</span>
+                <span className="font-inter font-600 text-charcoal text-sm md:text-base">{xpEarned} XP</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full shadow-warm">
+                <span className="text-lg">🔥</span>
+                <span className="font-inter font-600 text-charcoal text-sm md:text-base">{streakDays} day streak</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full shadow-warm">
-              <span className="text-lg">🔥</span>
-              <span className="font-inter font-600 text-charcoal text-sm md:text-base">3 day streak</span>
-            </div>
-          </div>
+          )}
         </div>
       </header>
 
@@ -76,7 +120,9 @@ const Dashboard = () => {
               <div className="relative flex-1">
                 <div className="gradient-coral rounded-[16px] p-4 md:p-5 shadow-warm">
                   <p className="font-inter font-500 text-white text-base md:text-lg">
-                    Hey! Ready to decode some balance sheets today?
+                    {stats && stats.completedLevels.length > 0 
+                      ? `Welcome back! You're on Level ${currentLevel}. Let's keep going!`
+                      : "Hey! Ready to decode some balance sheets today?"}
                   </p>
                 </div>
                 {/* Speech bubble arrow */}
@@ -115,13 +161,13 @@ const Dashboard = () => {
                     Level {currentLevel}/{totalLevels}
                   </span>
                   <span className="font-inter font-500 text-charcoal/60 text-sm">
-                    {progressPercent.toFixed(0)}% complete
+                    {stats ? `${stats.completedLevels.length * 10}% complete` : '0% complete'}
                   </span>
                 </div>
                 <div className="h-3 bg-charcoal/10 rounded-full overflow-hidden">
                   <div 
                     className="h-full gradient-coral rounded-full transition-all duration-500"
-                    style={{ width: `${progressPercent}%` }}
+                    style={{ width: `${stats ? stats.completedLevels.length * 10 : 0}%` }}
                   />
                 </div>
               </div>
@@ -145,7 +191,7 @@ const Dashboard = () => {
               {/* CTA Button */}
               <Link href="/balance-sheet">
                 <button className="w-full md:w-auto gradient-coral text-white font-inter font-600 text-lg px-8 py-4 rounded-[8px] shadow-warm hover:shadow-warm-lg transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98]">
-                  Start Learning →
+                  {stats && stats.completedLevels.length > 0 ? 'Continue Learning →' : 'Start Learning →'}
                 </button>
               </Link>
             </div>
