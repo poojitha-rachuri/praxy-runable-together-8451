@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/clerk-react";
 import PraxyMascot from "../components/praxy-mascot";
-import { getProgress, getStats, setClerkId, getClerkId } from "../lib/api";
+import { getProgress, getStats, setClerkId, getClerkId, getLevels, LevelData } from "../lib/api";
 
 interface LevelCardProps {
   levelNumber: number;
@@ -135,17 +135,18 @@ const CompanyCard = ({ name, category }: CompanyCardProps) => (
   </div>
 );
 
-const levelsData = [
+// Fallback data in case DB fetch fails
+const fallbackLevelsData = [
   { title: "The Liquidity Check", concept: "Current Ratio", question: "Is this company alive?" },
   { title: "The Debt Detective", concept: "Debt-to-Equity", question: "Who owns this company?" },
-  { title: "The Cash King", question: "Where's the money?" },
-  { title: "Asset Inspector", question: "What do they actually own?" },
-  { title: "Profit Reality Check", question: "Does profit = cash?" },
-  { title: "Efficiency Expert", question: "How fast does money move?" },
-  { title: "Growth Analyzer", question: "Is this growth healthy?" },
-  { title: "Return Master", question: "Is this investment worth it?" },
-  { title: "Red Flag Spotter", question: "What's hidden?" },
-  { title: "Full Analysis", question: "Put it all together" },
+  { title: "Cash is King", concept: "Cash Ratio", question: "Where's the money?" },
+  { title: "Asset Inspector", concept: "Asset Composition", question: "What do they actually own?" },
+  { title: "Profit Reality Check", concept: "Working Capital", question: "Does profit = cash?" },
+  { title: "Efficiency Expert", concept: "Asset Turnover", question: "How fast does money move?" },
+  { title: "Growth Analyzer", concept: "Equity Growth Rate", question: "Is this growth healthy?" },
+  { title: "Return Master", concept: "Return on Equity (ROE)", question: "Is this investment worth it?" },
+  { title: "Red Flag Spotter", concept: "Financial Red Flags", question: "What's hidden?" },
+  { title: "Full Analysis", concept: "Comprehensive Analysis", question: "Put it all together" },
 ];
 
 // Skeleton for loading state
@@ -173,6 +174,7 @@ const BalanceSheet = () => {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [totalXP, setTotalXP] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [levelsData, setLevelsData] = useState<Array<{ title: string; concept?: string; question: string }>>([]);
   
   useEffect(() => {
     const loadData = async () => {
@@ -185,22 +187,34 @@ const BalanceSheet = () => {
         setClerkId(user.id);
       }
       
-      // Only fetch if we have a clerk ID
-      const clerkId = getClerkId();
-      if (!clerkId) {
-        setLoading(false);
-        return;
-      }
-      
       try {
-        const [progressData, statsData] = await Promise.all([
-          getProgress(),
-          getStats()
-        ]);
-        if (progressData) setProgress(progressData);
-        if (statsData) setTotalXP(statsData.totalXp);
+        // Fetch levels from database (doesn't require auth)
+        const dbLevels = await getLevels('balance-sheet');
+        if (dbLevels && dbLevels.length > 0) {
+          setLevelsData(dbLevels.map(level => ({
+            title: level.title,
+            concept: level.concept || undefined,
+            question: level.subtitle || '',
+          })));
+        } else {
+          // Use fallback data
+          setLevelsData(fallbackLevelsData);
+        }
+        
+        // Only fetch progress if we have a clerk ID
+        const clerkId = getClerkId();
+        if (clerkId) {
+          const [progressData, statsData] = await Promise.all([
+            getProgress(),
+            getStats()
+          ]);
+          if (progressData) setProgress(progressData);
+          if (statsData) setTotalXP(statsData.totalXp);
+        }
       } catch (error) {
         console.error('Failed to load data:', error);
+        // Use fallback data on error
+        setLevelsData(fallbackLevelsData);
       }
       setLoading(false);
     };
@@ -324,7 +338,7 @@ const BalanceSheet = () => {
               
               {/* Levels */}
               <div className="space-y-4">
-                {loading ? (
+                {loading || levelsData.length === 0 ? (
                   // Show skeletons while loading
                   Array.from({ length: 5 }).map((_, index) => (
                     <LevelCardSkeleton key={index} />
@@ -345,7 +359,7 @@ const BalanceSheet = () => {
                         <LevelCard
                           levelNumber={levelNumber}
                           title={level.title}
-                          concept={levelNumber <= 2 ? level.concept : undefined}
+                          concept={level.concept}
                           question={level.question}
                           isLocked={isLocked}
                           isCurrent={isCurrent}

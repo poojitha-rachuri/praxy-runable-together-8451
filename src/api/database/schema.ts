@@ -56,6 +56,67 @@ export const badges = sqliteTable("badges", {
   earnedAt: text("earned_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Simulators table - stores available learning simulators
+export const simulators = sqliteTable("simulators", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").unique().notNull(),
+  description: text("description"),
+  icon: text("icon"),
+  status: text("status").default("coming-soon"), // 'active', 'coming-soon', 'beta'
+  totalLevels: integer("total_levels").default(10),
+  orderIndex: integer("order_index").default(0),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Levels table - stores level content for each simulator
+export const levels = sqliteTable("levels", {
+  id: text("id").primaryKey(),
+  simulatorId: text("simulator_id").notNull(),
+  levelNumber: integer("level_number").notNull(),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  concept: text("concept"),
+  formula: text("formula"),
+  explanation: text("explanation"),
+  companyName: text("company_name"),
+  companyData: text("company_data"), // JSON string
+  insight: text("insight"),
+  status: text("status").default("locked"), // 'locked', 'unlocked'
+  xpReward: integer("xp_reward").default(100),
+  badgeId: text("badge_id"),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Questions table - stores quiz questions for each level
+export const questions = sqliteTable("questions", {
+  id: text("id").primaryKey(),
+  levelId: text("level_id").notNull(),
+  questionNumber: integer("question_number").notNull(),
+  type: text("type").notNull(), // 'visual-comparison', 'yes-no', 'multiple-choice'
+  prompt: text("prompt").notNull(),
+  context: text("context"),
+  options: text("options").notNull(), // JSON array
+  correctAnswer: text("correct_answer").notNull(),
+  explanation: text("explanation"),
+  hint: text("hint"),
+  xpValue: integer("xp_value").default(30),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Company data table - stores preloaded balance sheet data
+export const companyData = sqliteTable("company_data", {
+  id: text("id").primaryKey(),
+  companyName: text("company_name").notNull(),
+  ticker: text("ticker"),
+  year: integer("year"),
+  dataType: text("data_type").default("balance-sheet"),
+  rawData: text("raw_data").notNull(), // JSON string
+  source: text("source"),
+  isPreloaded: integer("is_preloaded").default(1),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -65,3 +126,11 @@ export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 export type Badge = typeof badges.$inferSelect;
 export type NewBadge = typeof badges.$inferInsert;
+export type Simulator = typeof simulators.$inferSelect;
+export type NewSimulator = typeof simulators.$inferInsert;
+export type Level = typeof levels.$inferSelect;
+export type NewLevel = typeof levels.$inferInsert;
+export type Question = typeof questions.$inferSelect;
+export type NewQuestion = typeof questions.$inferInsert;
+export type CompanyData = typeof companyData.$inferSelect;
+export type NewCompanyData = typeof companyData.$inferInsert;

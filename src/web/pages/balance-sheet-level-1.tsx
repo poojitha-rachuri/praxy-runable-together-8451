@@ -1,5 +1,22 @@
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
 import PraxyMascot from "../components/praxy-mascot";
+import { getLevel, LevelData } from "../lib/api";
+
+// Fallback level data
+const fallbackLevelData = {
+  title: "The Liquidity Check",
+  concept: "Current Ratio",
+  formula: "Current Assets ÷ Current Liabilities",
+  explanation: "The current ratio measures a company's ability to pay short-term obligations. A ratio above 1.0 means the company has more current assets than current liabilities.",
+  company_name: "Tesla",
+  company_data: {
+    current_assets: { cash: 16.4, receivables: 3.0, inventory: 14.7, other: 1.8, total: 35.9 },
+    current_liabilities: { payables: 14.4, accrued: 5.3, deferred: 1.8, total: 21.5 },
+    ratio: 1.67
+  },
+  insight: "Tesla has $1.67 for every $1 it owes in the short term. That's healthy!"
+};
 
 // Step indicator component
 interface StepIndicatorProps {
@@ -110,6 +127,44 @@ const ThresholdBadge = ({ color, range, label }: ThresholdBadgeProps) => {
 };
 
 const BalanceSheetLevel1 = () => {
+  const [levelData, setLevelData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadLevel = async () => {
+      try {
+        const data = await getLevel('balance-sheet', 1);
+        if (data) {
+          setLevelData({
+            title: data.title,
+            concept: data.concept,
+            formula: data.formula,
+            explanation: data.explanation,
+            company_name: data.company_name,
+            company_data: data.company_data,
+            insight: data.insight
+          });
+        } else {
+          setLevelData(fallbackLevelData);
+        }
+      } catch (error) {
+        console.error('Failed to load level:', error);
+        setLevelData(fallbackLevelData);
+      }
+      setLoading(false);
+    };
+    loadLevel();
+  }, []);
+
+  // Use fallback while loading
+  const data = levelData || fallbackLevelData;
+  const companyData = data.company_data || fallbackLevelData.company_data;
+  const currentAssets = companyData.current_assets || {};
+  const currentLiabilities = companyData.current_liabilities || {};
+  const ratio = companyData.ratio || 1.67;
+  const isHealthy = ratio >= 1.5;
+  const isAcceptable = ratio >= 1.0 && ratio < 1.5;
+
   return (
     <div className="min-h-screen bg-cream">
       {/* Background decorative elements */}
@@ -138,7 +193,7 @@ const BalanceSheetLevel1 = () => {
                 </button>
               </Link>
               <h1 className="font-nunito font-700 text-base md:text-lg text-charcoal">
-                Level 1: The Liquidity Check
+                Level 1: {data.title}
               </h1>
             </div>
           </div>
@@ -187,7 +242,7 @@ const BalanceSheetLevel1 = () => {
                 Key Concept
               </span>
               <h2 className="font-nunito font-800 text-2xl md:text-3xl text-charcoal mb-2">
-                THE CURRENT RATIO
+                THE {(data.concept || 'CURRENT RATIO').toUpperCase()}
               </h2>
             </div>
             
@@ -198,7 +253,7 @@ const BalanceSheetLevel1 = () => {
                   Formula
                 </p>
                 <p className="font-nunito font-700 text-xl md:text-2xl text-white">
-                  Current Ratio = <span className="text-mint">Current Assets</span> ÷ <span className="text-orange">Current Liabilities</span>
+                  {data.concept || 'Current Ratio'} = <span className="text-mint">Current Assets</span> ÷ <span className="text-orange">Current Liabilities</span>
                 </p>
               </div>
             </div>
@@ -217,7 +272,7 @@ const BalanceSheetLevel1 = () => {
             <div className="text-center mb-6">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-charcoal/5 rounded-full mb-2">
                 <span className="text-xl">🚗</span>
-                <span className="font-nunito font-700 text-charcoal text-sm md:text-base">TESLA</span>
+                <span className="font-nunito font-700 text-charcoal text-sm md:text-base">{data.company_name || 'TESLA'}</span>
               </div>
               <h3 className="font-nunito font-700 text-lg md:text-xl text-charcoal">
                 Balance Sheet (2024)
@@ -239,11 +294,11 @@ const BalanceSheetLevel1 = () => {
                 </p>
                 
                 <div className="text-mint">
-                  <BalanceItem label="Cash" value="$16.4B" />
-                  <BalanceItem label="Receivables" value="$3.0B" />
-                  <BalanceItem label="Inventory" value="$14.7B" />
-                  <BalanceItem label="Other" value="$1.8B" />
-                  <BalanceItem label="TOTAL" value="$35.9B" isTotal />
+                  <BalanceItem label="Cash" value={`${currentAssets.cash || 16.4}B`} />
+                  <BalanceItem label="Receivables" value={`${currentAssets.receivables || 3.0}B`} />
+                  <BalanceItem label="Inventory" value={`${currentAssets.inventory || 14.7}B`} />
+                  <BalanceItem label="Other" value={`${currentAssets.other || 1.8}B`} />
+                  <BalanceItem label="TOTAL" value={`${currentAssets.total || 35.9}B`} isTotal />
                 </div>
               </div>
               
@@ -260,11 +315,11 @@ const BalanceSheetLevel1 = () => {
                 </p>
                 
                 <div className="text-orange">
-                  <BalanceItem label="Payables" value="$14.4B" />
-                  <BalanceItem label="Accrued" value="$5.3B" />
-                  <BalanceItem label="Deferred" value="$1.8B" />
+                  <BalanceItem label="Payables" value={`${currentLiabilities.payables || 14.4}B`} />
+                  <BalanceItem label="Accrued" value={`${currentLiabilities.accrued || 5.3}B`} />
+                  <BalanceItem label="Deferred" value={`${currentLiabilities.deferred || 1.8}B`} />
                   <BalanceItem label="" value="" />
-                  <BalanceItem label="TOTAL" value="$21.5B" isTotal />
+                  <BalanceItem label="TOTAL" value={`${currentLiabilities.total || 21.5}B`} isTotal />
                 </div>
               </div>
             </div>
@@ -278,21 +333,23 @@ const BalanceSheetLevel1 = () => {
               </p>
               
               <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 mb-6">
-                <span className="font-nunito font-700 text-white text-lg md:text-xl">CURRENT RATIO</span>
+                <span className="font-nunito font-700 text-white text-lg md:text-xl">{(data.concept || 'CURRENT RATIO').toUpperCase()}</span>
                 <span className="text-white/50">=</span>
-                <span className="font-nunito font-700 text-mint text-lg md:text-xl">$35.9B</span>
+                <span className="font-nunito font-700 text-mint text-lg md:text-xl">${currentAssets.total || 35.9}B</span>
                 <span className="text-white/50">÷</span>
-                <span className="font-nunito font-700 text-orange text-lg md:text-xl">$21.5B</span>
+                <span className="font-nunito font-700 text-orange text-lg md:text-xl">${currentLiabilities.total || 21.5}B</span>
               </div>
               
               {/* Big result */}
               <div className="inline-flex items-center gap-4 px-6 md:px-8 py-4 bg-white/10 rounded-[12px] backdrop-blur-sm">
                 <span className="font-nunito font-800 text-4xl md:text-5xl text-white">
-                  1.67
+                  {ratio.toFixed(2)}
                 </span>
-                <div className="flex items-center gap-2 px-4 py-2 bg-mint rounded-full shadow-lg">
-                  <span className="text-xl">🟢</span>
-                  <span className="font-nunito font-700 text-white text-sm md:text-base">HEALTHY</span>
+                <div className={`flex items-center gap-2 px-4 py-2 ${isHealthy ? 'bg-mint' : isAcceptable ? 'bg-yellow' : 'bg-rose'} rounded-full shadow-lg`}>
+                  <span className="text-xl">{isHealthy ? '🟢' : isAcceptable ? '🟡' : '🔴'}</span>
+                  <span className="font-nunito font-700 text-white text-sm md:text-base">
+                    {isHealthy ? 'HEALTHY' : isAcceptable ? 'ACCEPTABLE' : 'DANGER'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -333,12 +390,12 @@ const BalanceSheetLevel1 = () => {
             
             <div className="space-y-4">
               <p className="font-inter font-400 text-white/95 text-base leading-relaxed">
-                Tesla has <span className="font-700">$1.67 for every $1</span> they owe this year. They can comfortably pay their short-term bills. That's a healthy company!
+                {data.insight || `${data.company_name || 'Tesla'} has ${ratio.toFixed(2)} for every $1 they owe this year. They can comfortably pay their short-term bills. That's a healthy company!`}
               </p>
               <div className="flex items-start gap-2 p-4 bg-white/10 rounded-[8px] backdrop-blur-sm">
                 <span className="text-lg mt-0.5">📝</span>
                 <p className="font-inter font-500 text-white/90 text-sm leading-relaxed">
-                  <span className="font-700">Remember:</span> Current Ratio is your first health check. If it's below 1.0, that's a red flag.
+                  <span className="font-700">Remember:</span> {data.concept || 'Current Ratio'} is your first health check. If it's below 1.0, that's a red flag.
                 </p>
               </div>
             </div>
