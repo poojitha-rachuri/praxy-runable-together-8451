@@ -117,6 +117,42 @@ export const companyData = sqliteTable("company_data", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Scenarios table - stores cold call practice scenarios
+export const scenarios = sqliteTable("scenarios", {
+  id: text("id").primaryKey(),
+  simulatorId: text("simulator_id").default("sim-cc"),
+  levelNumber: integer("level_number").notNull(),
+  companyName: text("company_name").notNull(),
+  companyUrl: text("company_url"),
+  companyContext: text("company_context"),
+  prospectName: text("prospect_name").notNull(),
+  prospectRole: text("prospect_role").notNull(),
+  prospectPersonality: text("prospect_personality"),
+  objective: text("objective").notNull(),
+  difficulty: text("difficulty").default("beginner"), // 'beginner', 'intermediate', 'advanced'
+  tips: text("tips"), // JSON array
+  successCriteria: text("success_criteria"), // JSON array
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Cold call sessions table - stores call transcripts and scores
+export const coldCallSessions = sqliteTable("cold_call_sessions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  clerkId: text("clerk_id").notNull(),
+  scenarioId: text("scenario_id").notNull(),
+  transcript: text("transcript"), // JSON array of messages
+  durationSeconds: integer("duration_seconds"),
+  overallScore: integer("overall_score"),
+  openingScore: integer("opening_score"),
+  valueScore: integer("value_score"),
+  objectionScore: integer("objection_score"),
+  controlScore: integer("control_score"),
+  closeScore: integer("close_score"),
+  highlights: text("highlights"), // JSON array
+  improvements: text("improvements"), // JSON array
+  completedAt: text("completed_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -134,3 +170,7 @@ export type Question = typeof questions.$inferSelect;
 export type NewQuestion = typeof questions.$inferInsert;
 export type CompanyData = typeof companyData.$inferSelect;
 export type NewCompanyData = typeof companyData.$inferInsert;
+export type Scenario = typeof scenarios.$inferSelect;
+export type NewScenario = typeof scenarios.$inferInsert;
+export type ColdCallSession = typeof coldCallSessions.$inferSelect;
+export type NewColdCallSession = typeof coldCallSessions.$inferInsert;

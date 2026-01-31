@@ -1146,4 +1146,315 @@ app.get('/seed-content', async (c) => {
   }
 });
 
+// ====================
+// COLD CALL SCENARIOS ROUTES
+// ====================
+
+// GET /api/scenarios - Get all cold call scenarios
+app.get('/scenarios', async (c) => {
+  try {
+    const db = c.env.DB;
+    const result = await db.prepare(`
+      SELECT * FROM scenarios ORDER BY level_number ASC
+    `).all();
+    
+    // Parse JSON fields
+    const scenarios = result.results.map((s: any) => ({
+      ...s,
+      tips: s.tips ? JSON.parse(s.tips) : [],
+      success_criteria: s.success_criteria ? JSON.parse(s.success_criteria) : [],
+    }));
+    
+    return c.json({ success: true, scenarios });
+  } catch (error) {
+    console.error('Error in GET /scenarios:', error);
+    return c.json({ success: false, error: 'Failed to get scenarios' }, 500);
+  }
+});
+
+// GET /api/scenarios/:id - Get a specific scenario
+app.get('/scenarios/:id', async (c) => {
+  try {
+    const db = c.env.DB;
+    const id = c.req.param('id');
+    
+    const scenario = await db.prepare(`
+      SELECT * FROM scenarios WHERE id = ?
+    `).bind(id).first() as any;
+    
+    if (!scenario) {
+      return c.json({ success: false, error: 'Scenario not found' }, 404);
+    }
+    
+    // Parse JSON fields
+    const parsed = {
+      ...scenario,
+      tips: scenario.tips ? JSON.parse(scenario.tips) : [],
+      success_criteria: scenario.success_criteria ? JSON.parse(scenario.success_criteria) : [],
+    };
+    
+    return c.json({ success: true, scenario: parsed });
+  } catch (error) {
+    console.error('Error in GET /scenarios/:id:', error);
+    return c.json({ success: false, error: 'Failed to get scenario' }, 500);
+  }
+});
+
+// GET /api/cold-call/progress - Get user's cold call progress
+app.get('/cold-call/progress', async (c) => {
+  try {
+    const db = c.env.DB;
+    const clerkId = c.req.query('clerkId');
+    
+    if (!clerkId) {
+      return c.json({ success: false, error: 'clerkId is required' }, 400);
+    }
+    
+    const result = await db.prepare(`
+      SELECT DISTINCT scenario_id FROM cold_call_sessions 
+      WHERE clerk_id = ? AND overall_score >= 60
+    `).bind(clerkId).all();
+    
+    const completedScenarios = result.results.map((r: any) => r.scenario_id);
+    
+    return c.json({ success: true, completedScenarios });
+  } catch (error) {
+    console.error('Error in GET /cold-call/progress:', error);
+    return c.json({ success: false, error: 'Failed to get progress' }, 500);
+  }
+});
+
+// POST /api/cold-call/sessions - Save a cold call session
+app.post('/cold-call/sessions', async (c) => {
+  try {
+    const db = c.env.DB;
+    const body = await c.req.json() as {
+      clerkId: string;
+      scenarioId: string;
+      transcript: any[];
+      durationSeconds: number;
+      overallScore: number;
+      openingScore: number;
+      valueScore: number;
+      objectionScore: number;
+      controlScore: number;
+      closeScore: number;
+      highlights: any[];
+      improvements: string[];
+    };
+    
+    const {
+      clerkId,
+      scenarioId,
+      transcript,
+      durationSeconds,
+      overallScore,
+      openingScore,
+      valueScore,
+      objectionScore,
+      controlScore,
+      closeScore,
+      highlights,
+      improvements,
+    } = body;
+    
+    if (!clerkId || !scenarioId) {
+      return c.json({ success: false, error: 'clerkId and scenarioId are required' }, 400);
+    }
+    
+    const sessionId = crypto.randomUUID();
+    
+    await db.prepare(`
+      INSERT INTO cold_call_sessions (
+        id, clerk_id, scenario_id, transcript, duration_seconds,
+        overall_score, opening_score, value_score, objection_score,
+        control_score, close_score, highlights, improvements
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      sessionId,
+      clerkId,
+      scenarioId,
+      JSON.stringify(transcript),
+      durationSeconds,
+      overallScore,
+      openingScore,
+      valueScore,
+      objectionScore,
+      controlScore,
+      closeScore,
+      JSON.stringify(highlights),
+      JSON.stringify(improvements)
+    ).run();
+    
+    // Award XP based on score
+    const xpEarned = Math.round(overallScore * 1.5);
+    const orm = drizzle(c.env.DB);
+    const user = await orm.select().from(users).where(eq(users.clerkId, clerkId)).get();
+    
+    if (user) {
+      await orm.update(users)
+        .set({
+          totalXp: (user.totalXp || 0) + xpEarned,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(users.clerkId, clerkId));
+    }
+    
+    return c.json({ success: true, session: { id: sessionId }, xpEarned });
+  } catch (error) {
+    console.error('Error in POST /cold-call/sessions:', error);
+    return c.json({ success: false, error: 'Failed to save session' }, 500);
+  }
+});
+
+// GET /api/cold-call/sessions/:id - Get a specific session
+app.get('/cold-call/sessions/:id', async (c) => {
+  try {
+    const db = c.env.DB;
+    const id = c.req.param('id');
+    
+    const session = await db.prepare(`
+      SELECT * FROM cold_call_sessions WHERE id = ?
+    `).bind(id).first() as any;
+    
+    if (!session) {
+      return c.json({ success: false, error: 'Session not found' }, 404);
+    }
+    
+    // Parse JSON fields
+    const parsed = {
+      ...session,
+      transcript: session.transcript ? JSON.parse(session.transcript) : [],
+      highlights: session.highlights ? JSON.parse(session.highlights) : [],
+      improvements: session.improvements ? JSON.parse(session.improvements) : [],
+    };
+    
+    return c.json({ success: true, session: parsed });
+  } catch (error) {
+    console.error('Error in GET /cold-call/sessions/:id:', error);
+    return c.json({ success: false, error: 'Failed to get session' }, 500);
+  }
+});
+
+// POST /api/cold-call/score - Score a cold call (placeholder - would use Claude API)
+app.post('/cold-call/score', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      transcript: any[];
+      scenario: any;
+    };
+    
+    const { transcript, scenario } = body;
+    
+    if (!transcript || !scenario) {
+      return c.json({ success: false, error: 'transcript and scenario are required' }, 400);
+    }
+    
+    // Simple scoring logic (placeholder - would use Claude API for real analysis)
+    const messageCount = transcript.length;
+    const userMessages = transcript.filter((m: any) => m.role === 'user');
+    
+    // Basic scoring based on message content
+    const hasOpening = userMessages.some((m: any) => 
+      m.content.toLowerCase().includes('hi') || 
+      m.content.toLowerCase().includes('hello')
+    );
+    const hasValue = userMessages.some((m: any) => 
+      m.content.toLowerCase().includes('%') || 
+      m.content.toLowerCase().includes('save') ||
+      m.content.toLowerCase().includes('improve')
+    );
+    const hasClose = userMessages.some((m: any) => 
+      m.content.toLowerCase().includes('meeting') || 
+      m.content.toLowerCase().includes('demo') ||
+      m.content.toLowerCase().includes('call')
+    );
+    
+    const score = {
+      overall: Math.min(100, 50 + (hasOpening ? 15 : 0) + (hasValue ? 20 : 0) + (hasClose ? 15 : 0)),
+      opening: hasOpening ? 75 : 50,
+      value: hasValue ? 70 : 45,
+      objection: Math.min(100, 50 + messageCount * 3),
+      control: Math.min(100, 55 + userMessages.length * 5),
+      close: hasClose ? 70 : 40,
+      highlights: [
+        hasOpening ? { text: 'Good opening greeting', type: 'good' } : { text: 'Could improve opening', type: 'improve' },
+        hasValue ? { text: 'Mentioned value proposition', type: 'good' } : { text: 'Add more value statements', type: 'improve' },
+        hasClose ? { text: 'Attempted to close', type: 'good' } : { text: 'Remember to ask for next steps', type: 'improve' },
+      ],
+      improvements: [
+        !hasValue ? 'Lead with specific numbers and ROI' : null,
+        !hasClose ? 'Always ask for a specific next step' : null,
+        'Practice handling objections more smoothly',
+      ].filter(Boolean),
+    };
+    
+    return c.json({ success: true, score });
+  } catch (error) {
+    console.error('Error in POST /cold-call/score:', error);
+    return c.json({ success: false, error: 'Failed to score call' }, 500);
+  }
+});
+
+// GET /api/seed-scenarios - Seed cold call scenarios
+app.get('/seed-scenarios', async (c) => {
+  try {
+    const db = c.env.DB;
+    
+    // Create scenarios table if it doesn't exist
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS scenarios (
+        id TEXT PRIMARY KEY,
+        simulator_id TEXT DEFAULT 'sim-cc',
+        level_number INTEGER NOT NULL,
+        company_name TEXT NOT NULL,
+        company_url TEXT,
+        company_context TEXT,
+        prospect_name TEXT NOT NULL,
+        prospect_role TEXT NOT NULL,
+        prospect_personality TEXT,
+        objective TEXT NOT NULL,
+        difficulty TEXT DEFAULT 'beginner',
+        tips TEXT,
+        success_criteria TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+    
+    // Create cold_call_sessions table if it doesn't exist
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS cold_call_sessions (
+        id TEXT PRIMARY KEY,
+        clerk_id TEXT NOT NULL,
+        scenario_id TEXT NOT NULL,
+        transcript TEXT,
+        duration_seconds INTEGER,
+        overall_score INTEGER,
+        opening_score INTEGER,
+        value_score INTEGER,
+        objection_score INTEGER,
+        control_score INTEGER,
+        close_score INTEGER,
+        highlights TEXT,
+        improvements TEXT,
+        completed_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+    
+    // Seed scenarios
+    await db.prepare(`
+      INSERT OR REPLACE INTO scenarios (id, simulator_id, level_number, company_name, company_url, company_context, prospect_name, prospect_role, prospect_personality, objective, difficulty, tips, success_criteria)
+      VALUES
+      ('sc-stripe-1', 'sim-cc', 1, 'Stripe', 'https://stripe.com', 'Stripe is a payments infrastructure company. You are selling a developer productivity tool.', 'Alex Chen', 'Engineering Manager', 'Friendly but busy. Values efficiency. Will give you 2 minutes if you hook them.', 'Book a 15-minute demo call', 'beginner', '["Lead with value, not features", "Mention developer pain points", "Ask about their current stack"]', '["Demo booked", "Follow-up agreed", "Contact info exchanged"]'),
+      ('sc-shopify-2', 'sim-cc', 2, 'Shopify', 'https://shopify.com', 'Shopify is an e-commerce platform. You are selling an inventory management solution.', 'Priya Sharma', 'Operations Lead', 'Skeptical. Has seen many pitches. Needs proof and numbers.', 'Get agreement for a pilot program', 'intermediate', '["Come with specific ROI numbers", "Reference similar companies", "Acknowledge their skepticism"]', '["Pilot agreed", "Decision timeline shared", "Stakeholders identified"]'),
+      ('sc-zomato-3', 'sim-cc', 3, 'Zomato', 'https://zomato.com', 'Zomato is a food delivery platform. You are selling a customer analytics tool.', 'Rahul Verma', 'Head of Growth', 'Aggressive, interrupts often. Wants bottom-line impact only.', 'Secure a meeting with the CTO', 'advanced', '["Get to the point fast", "Handle interruptions gracefully", "Pivot to CTO meeting if stuck"]', '["CTO meeting confirmed", "Business case understood", "Budget discussion initiated"]')
+    `).run();
+    
+    return c.json({ success: true, message: 'Scenarios seeded successfully' });
+  } catch (error) {
+    console.error('Error seeding scenarios:', error);
+    return c.json({ success: false, error: String(error) }, 500);
+  }
+});
+
 export default app;
