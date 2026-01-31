@@ -10,15 +10,15 @@ const PraxyMascot = ({ size = 120, className = "", waving = true, expression = "
   const getImageSrc = () => {
     switch (expression) {
       case "thinking":
-        return "./praxy-thinking.png";
+        return "/praxy-thinking.png";
       case "celebrating":
-        return "./praxy-celebrating.png";
+        return "/praxy-celebrating.png";
       case "sympathetic":
-        return "./praxy-sympathetic.png";
+        return "/praxy-sympathetic.png";
       case "happy":
-        return "./praxy-happy.png";
+        return "/praxy-happy.png";
       default:
-        return "./praxy-default.png";
+        return "/praxy-default.png";
     }
   };
 

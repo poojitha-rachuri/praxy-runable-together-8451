@@ -543,11 +543,14 @@ app.post('/sessions', async (c) => {
       answers?: Record<string, any>;
     };
     
-    const { clerkId, simulator = 'balance-sheet', level, score, totalQuestions = 5, timeSeconds, answers } = body;
+    const { clerkId, simulator = 'balance-sheet', level, score: rawScore, totalQuestions = 5, timeSeconds, answers } = body;
     
-    if (!clerkId || level === undefined || score === undefined) {
+    if (!clerkId || level === undefined || rawScore === undefined) {
       return c.json({ success: false, error: 'clerkId, level, and score are required' }, 400);
     }
+    
+    // Cap score at totalQuestions to prevent invalid scores (e.g., 6/5)
+    const score = Math.min(Math.max(0, rawScore), totalQuestions);
     
     // Calculate XP (30 per correct answer)
     const xpEarned = score * 30;

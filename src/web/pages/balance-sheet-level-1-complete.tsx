@@ -72,7 +72,9 @@ const BalanceSheetLevel1Complete = () => {
   const timeParam = params.get("time");
   const timeSeconds = timeParam ? parseInt(timeParam, 10) : undefined;
   
-  const percentage = Math.round((score / total) * 100);
+  // Cap score at total to prevent display issues like 120% accuracy
+  const cappedScore = Math.min(score, total);
+  const percentage = Math.round((cappedScore / total) * 100);
   const isPassing = percentage >= 60;
 
   const [showConfetti, setShowConfetti] = useState(true);
@@ -82,7 +84,7 @@ const BalanceSheetLevel1Complete = () => {
   const saveAttempted = useRef(false);
   
   // Animated counters
-  const animatedScore = useAnimatedCounter(score, 1200, animationStarted);
+  const animatedScore = useAnimatedCounter(cappedScore, 1200, animationStarted);
   const animatedXP = useAnimatedCounter(xp, 1500, animationStarted);
   const animatedPercentage = useAnimatedCounter(percentage, 1200, animationStarted);
 
@@ -110,13 +112,13 @@ const BalanceSheetLevel1Complete = () => {
 
       // Then save to API
       try {
-        // Save the quiz session
-        const sessionResult = await saveSession(1, score, total, timeSeconds, undefined, 'balance-sheet');
+        // Save the quiz session (use cappedScore to prevent invalid data)
+        const sessionResult = await saveSession(1, cappedScore, total, timeSeconds, undefined, 'balance-sheet');
         console.log('Session saved:', sessionResult);
         
         // Update progress if passing
         if (isPassing) {
-          const progressResult = await updateProgress(1, score, true, 'survivor', 'balance-sheet');
+          const progressResult = await updateProgress(1, cappedScore, true, 'survivor', 'balance-sheet');
           console.log('Progress updated:', progressResult);
           
           // Award badge
@@ -141,7 +143,7 @@ const BalanceSheetLevel1Complete = () => {
       clearTimeout(timer);
       clearTimeout(confettiTimer);
     };
-  }, [isPassing, score, total, timeSeconds, isSignedIn, user]);
+  }, [isPassing, cappedScore, total, timeSeconds, isSignedIn, user]);
 
   const getMessage = () => {
     if (percentage === 100) {
@@ -163,7 +165,7 @@ const BalanceSheetLevel1Complete = () => {
         <div
           key={i}
           className={`w-3 h-3 rounded-full transition-all duration-500 ${
-            i < score ? 'bg-mint scale-100' : 'bg-rose/50 scale-90'
+            i < cappedScore ? 'bg-mint scale-100' : 'bg-rose/50 scale-90'
           }`}
           style={{ animationDelay: `${i * 150 + 800}ms` }}
         />

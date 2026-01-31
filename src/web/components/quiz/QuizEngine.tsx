@@ -94,8 +94,9 @@ const QuizEngine = ({ levelId, levelNumber, levelTitle, backLink, onComplete, on
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex((i) => i + 1);
     } else {
-      // Quiz finished
-      const finalScore = score;
+      // Quiz finished - use current score state directly
+      // Note: score has already been incremented in handleSubmit if last answer was correct
+      const finalScore = Math.min(score, totalQuestions); // Cap at total questions
       const finalXP = xpEarned;
       const timeSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
 

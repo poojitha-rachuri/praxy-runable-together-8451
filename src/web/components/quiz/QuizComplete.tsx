@@ -63,14 +63,16 @@ const useAnimatedCounter = (end: number, duration = 1500, shouldStart = true) =>
 };
 
 const QuizComplete = ({ score, total, xpEarned, timeSeconds, onRetry, onNextLevel }: QuizCompleteProps) => {
-  const percentage = Math.round((score / total) * 100);
+  // Cap score at total to prevent display issues like 120% accuracy
+  const cappedScore = Math.min(score, total);
+  const percentage = Math.round((cappedScore / total) * 100);
   const isPassing = percentage >= 60;
 
   const [showConfetti, setShowConfetti] = useState(true);
   const [confettiPieces] = useState(() => generateConfetti(50));
   const [animationStarted, setAnimationStarted] = useState(false);
 
-  const animatedScore = useAnimatedCounter(score, 1200, animationStarted);
+  const animatedScore = useAnimatedCounter(cappedScore, 1200, animationStarted);
   const animatedXP = useAnimatedCounter(xpEarned, 1500, animationStarted);
   const animatedPercentage = useAnimatedCounter(percentage, 1200, animationStarted);
 
@@ -176,7 +178,7 @@ const QuizComplete = ({ score, total, xpEarned, timeSeconds, onRetry, onNextLeve
                 <div
                   key={i}
                   className={`w-3 h-3 rounded-full transition-all duration-500 ${
-                    i < score ? 'bg-mint scale-100' : 'bg-rose/50 scale-90'
+                    i < cappedScore ? 'bg-mint scale-100' : 'bg-rose/50 scale-90'
                   }`}
                 />
               ))}
