@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/clerk-react";
 import PraxyMascot from "../components/praxy-mascot";
+import PraxyAvatar from "../components/ui/PraxyAvatar";
+import SpeechBubble from "../components/ui/SpeechBubble";
 
 // Benefit Card Component
 interface BenefitCardProps {
@@ -13,10 +15,10 @@ interface BenefitCardProps {
 
 const BenefitCard = ({ emoji, title, description, delay }: BenefitCardProps) => (
   <div 
-    className={`bg-white rounded-[16px] p-6 shadow-warm hover:shadow-warm-lg transition-all duration-300 hover:-translate-y-1 opacity-0 animate-fade-in-up ${delay}`}
+    className={`bg-white rounded-[16px] p-6 shadow-warm hover:shadow-warm-lg transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02] cursor-pointer opacity-0 animate-fade-in-up ${delay} group`}
   >
-    <div className="text-4xl mb-4">{emoji}</div>
-    <h3 className="font-nunito font-700 text-xl text-charcoal mb-2">{title}</h3>
+    <div className="text-4xl mb-4 transition-transform duration-300 group-hover:scale-110">{emoji}</div>
+    <h3 className="font-nunito font-700 text-xl text-charcoal mb-2 group-hover:text-coral transition-colors">{title}</h3>
     <p className="font-inter font-400 text-muted-foreground leading-relaxed">{description}</p>
   </div>
 );
@@ -70,12 +72,12 @@ const Index = () => {
           <div className="flex items-center gap-3">
             <SignedOut>
               <SignInButton mode="modal">
-                <button className="font-inter font-500 text-charcoal hover:text-coral transition-colors px-4 py-2">
+                <button className="font-inter font-500 text-charcoal hover:text-coral transition-all duration-300 px-4 py-2 hover:scale-105">
                   Sign In
                 </button>
               </SignInButton>
               <SignUpButton mode="modal">
-                <button className="gradient-coral text-white font-inter font-600 px-5 py-2 rounded-[8px] shadow-warm hover:shadow-warm-lg transition-all">
+                <button className="gradient-coral text-white font-inter font-600 px-5 py-2 rounded-[8px] shadow-warm hover:shadow-warm-lg transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98]">
                   Sign Up
                 </button>
               </SignUpButton>
@@ -107,27 +109,77 @@ const Index = () => {
           </div>
 
           {/* Heading */}
-          <h1 className="font-nunito font-800 text-4xl md:text-5xl lg:text-[48px] text-charcoal leading-tight mb-6 opacity-0 animate-fade-in-up delay-100">
-            Leetcode for Business Skills
+          <h1 className="font-nunito font-800 text-4xl md:text-5xl lg:text-6xl text-charcoal leading-tight mb-6 opacity-0 animate-fade-in-up delay-100">
+            Leetcode for <span className="text-coral">Business Skills</span>
           </h1>
 
           {/* Subheading */}
           <p className="font-inter font-400 text-lg md:text-xl text-charcoal/80 max-w-2xl mx-auto mb-4 opacity-0 animate-fade-in-up delay-200">
-            Master balance sheets, cold calls, and root cause analysis with Praxy — your AI study buddy.
+            Master balance sheets, cold calls, and root cause analysis with <span className="font-600 text-coral">Praxy</span> — your AI study buddy.
           </p>
 
           {/* Tagline */}
-          <p className="font-inter font-500 text-lg italic text-teal mb-10 opacity-0 animate-fade-in-up delay-300">
-            Even rocket science, we'll learn it together.
+          <p className="font-inter font-500 text-base md:text-lg italic text-teal mb-10 opacity-0 animate-fade-in-up delay-300">
+            "Even rocket science, we'll learn it together."
           </p>
 
           {/* CTA Button */}
           <div className="opacity-0 animate-fade-in-up delay-400">
             <Link href="/dashboard">
-              <button className="gradient-coral text-white font-inter font-600 text-lg px-8 py-4 rounded-[8px] shadow-warm hover:shadow-warm-lg transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98]">
-                Start with Balance Sheets →
+              <button className="gradient-coral text-white font-inter font-600 text-lg px-8 py-4 rounded-[8px] shadow-warm hover:shadow-warm-lg transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] relative overflow-hidden group">
+                <span className="relative z-10">Start with Balance Sheets →</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
               </button>
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Meet Praxy Section */}
+      <section className="relative py-16 px-6 md:px-12 lg:px-20 bg-gradient-to-b from-transparent to-teal/5">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="font-nunito font-700 text-3xl md:text-4xl text-charcoal mb-4 opacity-0 animate-fade-in-up">
+              Meet Praxy, Your Study Buddy
+            </h2>
+            <p className="font-inter font-400 text-lg text-charcoal/70 max-w-2xl mx-auto opacity-0 animate-fade-in-up delay-100">
+              Your friendly AI companion who guides you through every lesson with encouragement and clarity.
+            </p>
+          </div>
+
+          {/* Avatar expressions grid */}
+          <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+            {/* Neutral expression */}
+            <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-in-up delay-200">
+              <PraxyAvatar size={100} expression="neutral" animate />
+              <SpeechBubble size="md" position="left" animate>
+                <p>Hi! I'm Praxy. Ready to learn something new together?</p>
+              </SpeechBubble>
+            </div>
+
+            {/* Thinking expression */}
+            <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-in-up delay-300">
+              <PraxyAvatar size={100} expression="thinking" animate />
+              <SpeechBubble size="md" position="right" animate>
+                <p>Hmm, let's break this down step by step...</p>
+              </SpeechBubble>
+            </div>
+
+            {/* Celebrating expression */}
+            <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-in-up delay-400">
+              <PraxyAvatar size={100} expression="celebrating" animate />
+              <SpeechBubble size="md" position="left" animate>
+                <p>Amazing! You're really getting the hang of this! 🎉</p>
+              </SpeechBubble>
+            </div>
+
+            {/* Encouraging expression */}
+            <div className="flex flex-col items-center gap-4 opacity-0 animate-fade-in-up delay-500">
+              <PraxyAvatar size={100} expression="encouraging" animate />
+              <SpeechBubble size="md" position="right" animate>
+                <p>Don't worry, we'll practice until it clicks! You've got this!</p>
+              </SpeechBubble>
+            </div>
           </div>
         </div>
       </section>
