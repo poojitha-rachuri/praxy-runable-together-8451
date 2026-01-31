@@ -113,7 +113,7 @@ const Dashboard = () => {
             <div className="flex items-center gap-4 md:gap-6">
               {/* Mascot Avatar */}
               <div className="flex-shrink-0">
-                <PraxyMascot size={48} waving={false} />
+                <PraxyMascot size={48} waving={false} expression="happy" />
               </div>
               
               {/* Speech Bubble */}

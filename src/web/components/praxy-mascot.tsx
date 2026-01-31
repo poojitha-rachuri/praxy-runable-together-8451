@@ -2,168 +2,59 @@ interface PraxyMascotProps {
   size?: number;
   className?: string;
   waving?: boolean;
-  expression?: "default" | "thinking" | "celebrating" | "sympathetic";
+  expression?: "default" | "thinking" | "celebrating" | "sympathetic" | "happy";
 }
 
 const PraxyMascot = ({ size = 120, className = "", waving = true, expression = "default" }: PraxyMascotProps) => {
-  // Eye positions based on expression
-  const getEyeProps = () => {
+  // Map expression to image file
+  const getImageSrc = () => {
     switch (expression) {
       case "thinking":
-        // Eyes looking up
-        return {
-          leftPupilCx: 38,
-          leftPupilCy: 47,
-          rightPupilCx: 62,
-          rightPupilCy: 47,
-          eyeScaleY: 1,
-        };
+        return "./praxy-thinking.png";
       case "celebrating":
-        // Eyes slightly squinted (happy)
-        return {
-          leftPupilCx: 39,
-          leftPupilCy: 51,
-          rightPupilCx: 63,
-          rightPupilCy: 51,
-          eyeScaleY: 0.8,
-        };
+        return "./praxy-celebrating.png";
       case "sympathetic":
-        // Eyes tilted sympathetically
-        return {
-          leftPupilCx: 39,
-          leftPupilCy: 52,
-          rightPupilCx: 63,
-          rightPupilCy: 50,
-          eyeScaleY: 1,
-        };
+        return "./praxy-sympathetic.png";
+      case "happy":
+        return "./praxy-happy.png";
       default:
-        return {
-          leftPupilCx: 39,
-          leftPupilCy: 51,
-          rightPupilCx: 63,
-          rightPupilCy: 51,
-          eyeScaleY: 1,
-        };
+        return "./praxy-default.png";
     }
   };
-
-  const getSmilePath = () => {
-    switch (expression) {
-      case "celebrating":
-        // Bigger, more enthusiastic smile
-        return "M 35 62 Q 50 78 65 62";
-      case "sympathetic":
-        // Gentle, understanding smile
-        return "M 40 65 Q 50 72 60 65";
-      default:
-        return "M 38 64 Q 50 74 62 64";
-    }
-  };
-
-  const eyeProps = getEyeProps();
-  const smilePath = getSmilePath();
 
   return (
     <div
       className={`relative ${waving ? "animate-float" : ""} ${className}`}
       style={{ width: size, height: size }}
     >
-      {/* Main blob body */}
-      <svg
-        viewBox="0 0 100 100"
+      {/* Mascot image */}
+      <img
+        src={getImageSrc()}
+        alt="Praxy mascot"
         width={size}
         height={size}
-        className={waving ? "animate-wave" : ""}
-      >
-        {/* Blob shape */}
-        <ellipse
-          cx="50"
-          cy="52"
-          rx="42"
-          ry="40"
-          fill="#FF6B6B"
-          className="drop-shadow-lg"
-        />
-        
-        {/* Subtle highlight */}
-        <ellipse
-          cx="38"
-          cy="40"
-          rx="15"
-          ry="12"
-          fill="rgba(255, 255, 255, 0.2)"
-        />
-        
-        {/* Left eye */}
-        <ellipse 
-          cx="38" 
-          cy="50" 
-          rx="6" 
-          ry={6 * eyeProps.eyeScaleY} 
-          fill="white" 
-          className={expression === "default" ? "animate-blink" : ""} 
-        />
-        <circle cx={eyeProps.leftPupilCx} cy={eyeProps.leftPupilCy} r="2.5" fill="#264653" />
-        
-        {/* Right eye */}
-        <ellipse 
-          cx="62" 
-          cy="50" 
-          rx="6" 
-          ry={6 * eyeProps.eyeScaleY} 
-          fill="white" 
-          className={expression === "default" ? "animate-blink" : ""} 
-        />
-        <circle cx={eyeProps.rightPupilCx} cy={eyeProps.rightPupilCy} r="2.5" fill="#264653" />
-        
-        {/* Smile */}
-        <path
-          d={smilePath}
-          fill="none"
-          stroke="white"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-        
-        {/* Waving hand/arm */}
-        {waving && (
-          <g className="origin-center">
-            <ellipse
-              cx="85"
-              cy="42"
-              rx="10"
-              ry="8"
-              fill="#FF6B6B"
-              className="drop-shadow-md"
-            />
-            {/* Small highlight on hand */}
-            <ellipse
-              cx="82"
-              cy="39"
-              rx="4"
-              ry="3"
-              fill="rgba(255, 255, 255, 0.2)"
-            />
-          </g>
-        )}
-
-        {/* Celebration sparkles for celebrating expression */}
-        {expression === "celebrating" && (
-          <>
-            <circle cx="20" cy="30" r="2" fill="#FFD166" className="animate-pulse" />
-            <circle cx="80" cy="25" r="2.5" fill="#FFD166" className="animate-pulse" />
-            <circle cx="15" cy="55" r="1.5" fill="#06D6A0" className="animate-pulse" />
-            <circle cx="85" cy="60" r="1.5" fill="#06D6A0" className="animate-pulse" />
-          </>
-        )}
-      </svg>
+        className={`w-full h-full object-contain ${waving ? "animate-wave" : ""}`}
+        style={{
+          filter: expression === "celebrating" ? "drop-shadow(0 4px 12px rgba(255, 107, 107, 0.3))" : "drop-shadow(0 2px 8px rgba(38, 70, 83, 0.15))"
+        }}
+      />
       
-      {/* Glow effect underneath */}
+      {/* Celebration sparkles for celebrating expression */}
+      {expression === "celebrating" && (
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-1 w-2 h-2 rounded-full bg-yellow animate-pulse" />
+          <div className="absolute top-2 right-0 w-2.5 h-2.5 rounded-full bg-yellow animate-pulse delay-150" />
+          <div className="absolute bottom-4 left-0 w-1.5 h-1.5 rounded-full bg-mint animate-pulse delay-300" />
+          <div className="absolute bottom-2 right-2 w-1.5 h-1.5 rounded-full bg-mint animate-pulse delay-450" />
+        </div>
+      )}
+      
+      {/* Subtle glow effect underneath */}
       <div 
-        className="absolute inset-0 -z-10 blur-xl opacity-40"
+        className="absolute inset-0 -z-10 blur-xl opacity-30"
         style={{
           background: "radial-gradient(circle, #FF6B6B 0%, transparent 70%)",
-          transform: "translateY(10px)"
+          transform: "translateY(10px) scale(0.8)"
         }}
       />
     </div>
