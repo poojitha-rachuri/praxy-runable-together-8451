@@ -287,6 +287,64 @@ app.get('/migrate-progress', async (c) => {
   }
 });
 
+// GET /api/fix-progress - Recreate progress table with correct schema
+app.get('/fix-progress', async (c) => {
+  try {
+    const db = c.env.DB;
+    
+    // Backup existing data
+    const existingData = await db.prepare('SELECT * FROM progress').all();
+    const rows = existingData.results || [];
+    
+    // Drop and recreate table with correct schema
+    await db.prepare('DROP TABLE IF EXISTS progress').run();
+    
+    await db.prepare(`
+      CREATE TABLE progress (
+        id TEXT PRIMARY KEY,
+        clerk_id TEXT NOT NULL,
+        simulator TEXT NOT NULL,
+        current_level INTEGER DEFAULT 1,
+        completed_levels TEXT DEFAULT '[]',
+        badges TEXT DEFAULT '[]',
+        best_score INTEGER DEFAULT 0,
+        total_sessions INTEGER DEFAULT 0,
+        total_xp INTEGER DEFAULT 0,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(clerk_id, simulator)
+      )
+    `).run();
+    
+    // Restore data
+    for (const row of rows) {
+      await db.prepare(`
+        INSERT INTO progress (id, clerk_id, simulator, current_level, completed_levels, badges, best_score, total_sessions, total_xp, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        row.id,
+        row.clerk_id,
+        row.simulator,
+        row.current_level || 1,
+        row.completed_levels || '[]',
+        row.badges || '[]',
+        row.best_score || 0,
+        row.total_sessions || 0,
+        row.total_xp || 0,
+        row.updated_at || new Date().toISOString()
+      ).run();
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: `Progress table recreated with ${rows.length} rows restored`,
+      columns: ['id', 'clerk_id', 'simulator', 'current_level', 'completed_levels', 'badges', 'best_score', 'total_sessions', 'total_xp', 'updated_at']
+    });
+  } catch (error) {
+    console.error('Error fixing progress table:', error);
+    return c.json({ success: false, error: String(error) }, 500);
+  }
+});
+
 // ====================
 // USER ROUTES
 // ====================
