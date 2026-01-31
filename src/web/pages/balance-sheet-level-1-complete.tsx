@@ -1,7 +1,8 @@
 import { Link, useSearch } from "wouter";
 import PraxyMascot from "../components/praxy-mascot";
 import { useEffect, useState, useRef } from "react";
-import { updateProgress, saveSession } from "../lib/api";
+import { useUser } from "@clerk/clerk-react";
+import { updateProgress, saveSession, awardBadge, getClerkId, setClerkId } from "../lib/api";
 
 // Confetti piece component
 const ConfettiPiece = ({ delay, duration, left, color, size }: { delay: number; duration: number; left: number; color: string; size: number }) => (
@@ -61,6 +62,7 @@ const useAnimatedCounter = (end: number, duration: number = 1500, shouldStart: b
 };
 
 const BalanceSheetLevel1Complete = () => {
+  const { user, isSignedIn } = useUser();
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   
@@ -95,32 +97,36 @@ const BalanceSheetLevel1Complete = () => {
       if (saveAttempted.current) return;
       saveAttempted.current = true;
 
-      // Always save to localStorage first as backup
-      if (isPassing) {
-        localStorage.setItem('praxy_level1_complete', 'true');
-        localStorage.setItem('praxy_level1_score', score.toString());
-        localStorage.setItem('praxy_level1_xp', xp.toString());
-        localStorage.setItem('praxy_current_level', '2');
-        
-        const currentTotalXp = parseInt(localStorage.getItem('praxy_total_xp') || '0', 10);
-        localStorage.setItem('praxy_total_xp', (currentTotalXp + xp).toString());
+      // Ensure we have the clerk ID
+      if (isSignedIn && user) {
+        setClerkId(user.id);
+      }
+      
+      const clerkId = getClerkId();
+      if (!clerkId) {
+        console.warn('No clerkId available, skipping API save');
+        return;
       }
 
       // Then save to API
       try {
         // Save the quiz session
-        await saveSession(1, score, total, xp, timeSeconds, 'balance-sheet');
+        const sessionResult = await saveSession(1, score, total, timeSeconds, undefined, 'balance-sheet');
+        console.log('Session saved:', sessionResult);
         
         // Update progress if passing
         if (isPassing) {
-          await updateProgress(1, 'Survivor Badge', xp, 'balance-sheet');
+          const progressResult = await updateProgress(1, score, true, 'survivor', 'balance-sheet');
+          console.log('Progress updated:', progressResult);
+          
+          // Award badge
+          await awardBadge('survivor', 'Survivor Badge', 'balance-sheet');
         }
         
         setDataSaved(true);
         console.log('Progress saved to API successfully');
       } catch (error) {
         console.error('Failed to save progress to API:', error);
-        // localStorage backup already done above
       }
     };
 
@@ -135,7 +141,7 @@ const BalanceSheetLevel1Complete = () => {
       clearTimeout(timer);
       clearTimeout(confettiTimer);
     };
-  }, [isPassing, score, xp, total, timeSeconds]);
+  }, [isPassing, score, total, timeSeconds, isSignedIn, user]);
 
   const getMessage = () => {
     if (percentage === 100) {

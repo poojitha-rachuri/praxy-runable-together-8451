@@ -1,7 +1,8 @@
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import PraxyMascot from "../components/praxy-mascot";
-import { getStats } from "../lib/api";
+import { getStats, getOrCreateUser, setClerkId } from "../lib/api";
 
 // Coming Soon Card Component
 interface ComingSoonCardProps {
@@ -41,22 +42,41 @@ const StatsSkeleton = () => (
 );
 
 const Dashboard = () => {
+  const { user, isLoaded, isSignedIn } = useUser();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   
+  // Sync Clerk user with our database
   useEffect(() => {
-    const loadStats = async () => {
+    const syncUserAndLoadStats = async () => {
+      if (!isLoaded) return;
+      
       setLoading(true);
-      try {
+      
+      if (isSignedIn && user) {
+        // Set the clerk ID for API calls
+        setClerkId(user.id);
+        
+        // Sync user to our database
+        await getOrCreateUser(
+          user.id,
+          user.primaryEmailAddress?.emailAddress,
+          user.fullName || user.firstName,
+          user.imageUrl
+        );
+        
+        // Now load stats
         const data = await getStats();
         setStats(data);
-      } catch (error) {
-        console.error('Failed to load stats:', error);
+      } else {
+        setStats(null);
       }
+      
       setLoading(false);
     };
-    loadStats();
-  }, []);
+    
+    syncUserAndLoadStats();
+  }, [isLoaded, isSignedIn, user]);
   
   // Computed values from stats
   const currentLevel = stats?.currentLevel || 1;
@@ -86,21 +106,39 @@ const Dashboard = () => {
             </div>
           </Link>
 
-          {/* Stats on right */}
-          {loading ? (
-            <StatsSkeleton />
-          ) : (
-            <div className="flex items-center gap-4 md:gap-6">
-              <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full shadow-warm">
-                <span className="text-lg">⭐</span>
-                <span className="font-inter font-600 text-charcoal text-sm md:text-base">{xpEarned} XP</span>
-              </div>
-              <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full shadow-warm">
-                <span className="text-lg">🔥</span>
-                <span className="font-inter font-600 text-charcoal text-sm md:text-base">{streakDays} day streak</span>
-              </div>
-            </div>
-          )}
+          {/* Stats and User on right */}
+          <div className="flex items-center gap-4 md:gap-6">
+            <SignedIn>
+              {loading ? (
+                <StatsSkeleton />
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full shadow-warm">
+                    <span className="text-lg">⭐</span>
+                    <span className="font-inter font-600 text-charcoal text-sm md:text-base">{xpEarned} XP</span>
+                  </div>
+                  <div className="hidden md:flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full shadow-warm">
+                    <span className="text-lg">🔥</span>
+                    <span className="font-inter font-600 text-charcoal text-sm md:text-base">{streakDays} day streak</span>
+                  </div>
+                </>
+              )}
+              <UserButton 
+                appearance={{
+                  elements: {
+                    avatarBox: "w-10 h-10"
+                  }
+                }}
+              />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="gradient-coral text-white font-inter font-600 px-6 py-2 rounded-[8px] shadow-warm hover:shadow-warm-lg transition-all">
+                  Sign In
+                </button>
+              </SignInButton>
+            </SignedOut>
+          </div>
         </div>
       </header>
 
@@ -121,8 +159,8 @@ const Dashboard = () => {
                 <div className="gradient-coral rounded-[16px] p-4 md:p-5 shadow-warm">
                   <p className="font-inter font-500 text-white text-base md:text-lg">
                     {stats && stats.completedLevels.length > 0 
-                      ? `Welcome back! You're on Level ${currentLevel}. Let's keep going!`
-                      : "Hey! Ready to decode some balance sheets today?"}
+                      ? `Welcome back${user?.firstName ? `, ${user.firstName}` : ''}! You're on Level ${currentLevel}. Let's keep going!`
+                      : `Hey${user?.firstName ? ` ${user.firstName}` : ''}! Ready to decode some balance sheets today?`}
                   </p>
                 </div>
                 {/* Speech bubble arrow */}

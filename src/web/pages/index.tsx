@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
+import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/clerk-react";
 import PraxyMascot from "../components/praxy-mascot";
 
 // Benefit Card Component
@@ -56,8 +57,49 @@ const Index = () => {
         <div className="absolute bottom-20 left-1/4 w-72 h-72 bg-teal/5 rounded-full blur-3xl" />
       </div>
 
+      {/* Header with Auth */}
+      <header className="relative py-4 px-6 md:px-12 bg-cream/80 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <PraxyMascot size={36} waving={false} />
+            <span className="font-nunito font-700 text-xl text-coral">Praxy</span>
+          </div>
+
+          {/* Auth buttons */}
+          <div className="flex items-center gap-3">
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="font-inter font-500 text-charcoal hover:text-coral transition-colors px-4 py-2">
+                  Sign In
+                </button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button className="gradient-coral text-white font-inter font-600 px-5 py-2 rounded-[8px] shadow-warm hover:shadow-warm-lg transition-all">
+                  Sign Up
+                </button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <Link href="/dashboard">
+                <button className="font-inter font-500 text-charcoal hover:text-coral transition-colors px-4 py-2">
+                  Dashboard
+                </button>
+              </Link>
+              <UserButton 
+                appearance={{
+                  elements: {
+                    avatarBox: "w-10 h-10"
+                  }
+                }}
+              />
+            </SignedIn>
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
-      <section className="relative pt-16 pb-20 px-6 md:px-12 lg:px-20">
+      <section className="relative pt-12 pb-20 px-6 md:px-12 lg:px-20">
         <div className="max-w-4xl mx-auto text-center">
           {/* Mascot */}
           <div className="flex justify-center mb-8 opacity-0 animate-fade-in-up">

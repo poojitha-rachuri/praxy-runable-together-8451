@@ -1,7 +1,8 @@
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
+import { useUser } from "@clerk/clerk-react";
 import PraxyMascot from "../components/praxy-mascot";
-import { getProgress, getStats } from "../lib/api";
+import { getProgress, getStats, setClerkId, getClerkId } from "../lib/api";
 
 interface LevelCardProps {
   levelNumber: number;
@@ -168,27 +169,43 @@ interface Progress {
 }
 
 const BalanceSheet = () => {
+  const { user, isLoaded, isSignedIn } = useUser();
   const [progress, setProgress] = useState<Progress | null>(null);
   const [totalXP, setTotalXP] = useState(0);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     const loadData = async () => {
+      if (!isLoaded) return;
+      
       setLoading(true);
+      
+      // Set clerk ID if signed in
+      if (isSignedIn && user) {
+        setClerkId(user.id);
+      }
+      
+      // Only fetch if we have a clerk ID
+      const clerkId = getClerkId();
+      if (!clerkId) {
+        setLoading(false);
+        return;
+      }
+      
       try {
         const [progressData, statsData] = await Promise.all([
           getProgress(),
           getStats()
         ]);
-        setProgress(progressData);
-        setTotalXP(statsData.totalXp);
+        if (progressData) setProgress(progressData);
+        if (statsData) setTotalXP(statsData.totalXp);
       } catch (error) {
         console.error('Failed to load data:', error);
       }
       setLoading(false);
     };
     loadData();
-  }, []);
+  }, [isLoaded, isSignedIn, user]);
   
   const currentLevel = progress?.currentLevel || 1;
   const completedLevels = progress?.completedLevels || [];
