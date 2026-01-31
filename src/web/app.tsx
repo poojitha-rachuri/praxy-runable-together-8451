@@ -9,6 +9,9 @@ import ColdCall from "./pages/cold-call";
 import ColdCallBriefing from "./pages/cold-call-briefing";
 import ColdCallSession from "./pages/cold-call-session";
 import ColdCallFeedback from "./pages/cold-call-feedback";
+import RCA from "./pages/rca";
+import RCAInvestigation from "./pages/rca-investigation";
+import RCAFeedback from "./pages/rca-feedback";
 import { Provider } from "./components/provider";
 
 function App() {
@@ -26,6 +29,10 @@ function App() {
 				<Route path="/cold-call/:scenarioId/briefing" component={ColdCallBriefing} />
 				<Route path="/cold-call/:scenarioId/call" component={ColdCallSession} />
 				<Route path="/cold-call/:scenarioId/feedback" component={ColdCallFeedback} />
+				{/* RCA Detective routes */}
+				<Route path="/rca" component={RCA} />
+				<Route path="/rca/:caseId" component={RCAInvestigation} />
+				<Route path="/rca/:caseId/feedback" component={RCAFeedback} />
 			</Switch>
 		</Provider>
 	);

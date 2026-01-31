@@ -1457,4 +1457,371 @@ app.get('/seed-scenarios', async (c) => {
   }
 });
 
+// ====================
+// RCA DETECTIVE ROUTES
+// ====================
+
+// GET /api/rca/cases - Get all RCA cases (without solutions)
+app.get('/rca/cases', async (c) => {
+  try {
+    const db = c.env.DB;
+    
+    const result = await db.prepare(`
+      SELECT id, title, difficulty, category, description, time_limit_minutes, xp_reward
+      FROM rca_cases
+      ORDER BY difficulty, id
+    `).all();
+    
+    return c.json({ success: true, cases: result.results || [] });
+  } catch (error) {
+    console.error('Error in GET /rca/cases:', error);
+    return c.json({ success: false, error: 'Failed to get cases' }, 500);
+  }
+});
+
+// GET /api/rca/cases/:id - Get specific case with data (no solutions)
+app.get('/rca/cases/:id', async (c) => {
+  try {
+    const db = c.env.DB;
+    const caseId = c.req.param('id');
+    
+    const result = await db.prepare(`
+      SELECT id, title, difficulty, category, description, initial_problem,
+             metric_name, metric_drop, time_period, available_data, 
+             root_cause, correct_fix, xp_reward
+      FROM rca_cases
+      WHERE id = ?
+    `).bind(caseId).first();
+    
+    if (!result) {
+      return c.json({ success: false, error: 'Case not found' }, 404);
+    }
+    
+    // Parse JSON fields and map to frontend format
+    const caseData = {
+      id: result.id,
+      level_number: parseInt(result.id.split('-')[2]) || 1,
+      title: result.title,
+      initial_problem: result.initial_problem,
+      metric_name: result.metric_name,
+      metric_drop: result.metric_drop,
+      time_period: result.time_period,
+      available_data: result.available_data ? JSON.parse(result.available_data) : [],
+      root_cause: result.root_cause,
+      correct_fix: result.correct_fix,
+      difficulty: result.difficulty,
+      xp_reward: result.xp_reward,
+    };
+    
+    return c.json({ success: true, case: caseData });
+  } catch (error) {
+    console.error('Error in GET /rca/cases/:id:', error);
+    return c.json({ success: false, error: 'Failed to get case' }, 500);
+  }
+});
+
+// POST /api/rca/sessions - Create new RCA session
+app.post('/rca/sessions', async (c) => {
+  try {
+    const db = c.env.DB;
+    const body = await c.req.json();
+    const { clerk_id, case_id } = body;
+    
+    if (!clerk_id || !case_id) {
+      return c.json({ success: false, error: 'clerk_id and case_id are required' }, 400);
+    }
+    
+    const sessionId = crypto.randomUUID();
+    await db.prepare(`
+      INSERT INTO rca_sessions (id, clerk_id, case_id, status, data_requests_made, started_at)
+      VALUES (?, ?, ?, 'in_progress', '[]', datetime('now'))
+    `).bind(sessionId, clerk_id, case_id).run();
+    
+    return c.json({ success: true, session_id: sessionId });
+  } catch (error) {
+    console.error('Error in POST /rca/sessions:', error);
+    return c.json({ success: false, error: 'Failed to create session' }, 500);
+  }
+});
+
+// GET /api/rca/sessions/:sessionId - Get session details
+app.get('/rca/sessions/:sessionId', async (c) => {
+  try {
+    const db = c.env.DB;
+    const sessionId = c.req.param('sessionId');
+    
+    const result = await db.prepare(`
+      SELECT * FROM rca_sessions WHERE id = ?
+    `).bind(sessionId).first();
+    
+    if (!result) {
+      return c.json({ success: false, error: 'Session not found' }, 404);
+    }
+    
+    // Parse JSON fields and format for frontend
+    const dataRequested = result.data_requests_made ? JSON.parse(result.data_requests_made) : [];
+    const fiveWhys = result.five_whys ? JSON.parse(result.five_whys) : [];
+    const fishboneCauses = result.fishbone ? JSON.parse(result.fishbone) : [];
+    const scoreData = result.feedback ? JSON.parse(result.feedback) : {};
+    
+    const session = {
+      id: result.id,
+      clerk_id: result.clerk_id,
+      case_id: result.case_id,
+      investigation_state: {
+        dataRequested,
+        fiveWhys,
+        fishboneCauses,
+        hypothesis: {
+          rootCause: result.submitted_root_cause || '',
+          fix: result.submitted_reasoning || '',
+          confidence: 'medium' as const,
+        },
+        timeSpent: result.time_seconds || 0,
+      },
+      score: scoreData,
+      completed_at: result.completed_at,
+    };
+    
+    return c.json({ success: true, session });
+  } catch (error) {
+    console.error('Error in GET /rca/sessions/:sessionId:', error);
+    return c.json({ success: false, error: 'Failed to get session' }, 500);
+  }
+});
+
+// POST /api/rca/data-request - Get mock investigation data
+app.post('/rca/data-request', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { session_id, case_id, data_type } = body;
+    
+    if (!session_id || !case_id || !data_type) {
+      return c.json({ success: false, error: 'session_id, case_id, and data_type are required' }, 400);
+    }
+    
+    // Mock data based on case and data type
+    const mockData: Record<string, Record<string, any>> = {
+      'dau-drop-001': {
+        'user_segments': { power_users: "-5%", casual: "-45%", new: "-12%" },
+        'feature_usage': { login_attempts: "+300%", login_success: "-60%", home_screen: "-40%" },
+        'error_logs': { auth_failures: 12453, api_timeouts: 23, null_errors: 156, peak_time: "11:30 PM" },
+        'deployment_history': { latest: "v2.3.1", deployed_at: "11:00 PM Jan 15", changes: "Auth flow refactor, Android SDK update" },
+        'device_breakdown': { iOS: "-3%", Android: "-41%", Web: "+2%" },
+        'session_duration': { avg_before: "8.2 min", avg_after: "2.1 min" },
+        'funnel_analysis': { app_open: 100, login_screen: 98, login_success: 38, home_screen: 36 },
+      },
+      'revenue-dip-001': {
+        'conversion_funnel': { visitors: "+10%", add_to_cart: "+15%", checkout: "+18%", purchase: "+22%" },
+        'pricing_data': { avg_price: "No change", discounts_applied: "+340%" },
+        'cart_abandonment': { rate: "-8%", improvement: true },
+        'payment_failures': { rate: "2.1%", normal: true },
+        'product_mix': { high_margin: "-5%", low_margin: "+25%" },
+        'promo_codes': { HOLIDAY25: "80% of orders", intended_end: "Dec 31", status: "Still active", discount: "25% off" },
+        'customer_segments': { new: "+30%", returning: "+5%" },
+        'competitor_pricing': { no_significant_changes: true },
+      },
+      'churn-spike-001': {
+        'churned_customer_list': { total: 47, starter_plan: "70%", growth_plan: "20%", enterprise: "10%" },
+        'customer_health_scores': { avg_churned: 32, avg_retained: 78 },
+        'support_tickets': { pricing_complaints: "+250%", feature_requests: "normal", bugs: "normal" },
+        'feature_usage_trends': { declining_engagement: "Starter segment only" },
+        'pricing_tier_breakdown': { starter_churn: "12%", growth_churn: "3%", enterprise_churn: "1%" },
+        'contract_renewals': { upcoming_30_days: 23, at_risk: 18 },
+        'nps_scores': { starter: 12, growth: 45, enterprise: 62, starter_previous: 45 },
+        'competitor_mentions': { increase: "+400%", competitor: "RivalCo", their_move: "Launched free tier Jan 5" },
+        'csm_notes': { common_theme: "Customers asking about RivalCo free tier", quote: "Why pay $49 when RivalCo is free?" },
+      },
+    };
+    
+    const caseData = mockData[case_id];
+    if (!caseData || !caseData[data_type]) {
+      return c.json({ success: false, error: 'Invalid case or data type' }, 404);
+    }
+    
+    // Update session's data_requests_made
+    const db = c.env.DB;
+    const session = await db.prepare('SELECT data_requests_made FROM rca_sessions WHERE id = ?').bind(session_id).first();
+    if (session) {
+      const requests = session.data_requests_made ? JSON.parse(session.data_requests_made) : [];
+      if (!requests.includes(data_type)) {
+        requests.push(data_type);
+        await db.prepare('UPDATE rca_sessions SET data_requests_made = ? WHERE id = ?')
+          .bind(JSON.stringify(requests), session_id).run();
+      }
+    }
+    
+    return c.json({ success: true, data_type, data: caseData[data_type] });
+  } catch (error) {
+    console.error('Error in POST /rca/data-request:', error);
+    return c.json({ success: false, error: 'Failed to get data' }, 500);
+  }
+});
+
+// POST /api/rca/submit - Submit analysis and get AI scoring
+app.post('/rca/submit', async (c) => {
+  try {
+    const db = c.env.DB;
+    const body = await c.req.json();
+    const { clerkId, caseId, investigationState } = body;
+    
+    if (!clerkId || !caseId || !investigationState || !investigationState.hypothesis) {
+      return c.json({ success: false, error: 'Missing required fields' }, 400);
+    }
+    
+    const { dataRequested, fiveWhys, fishboneCauses, hypothesis, timeSpent } = investigationState;
+    const root_cause = hypothesis.rootCause;
+    const fix = hypothesis.fix;
+    
+    // Create session first
+    const sessionId = crypto.randomUUID();
+    await db.prepare(`
+      INSERT INTO rca_sessions (id, clerk_id, case_id, status, data_requests_made, started_at)
+      VALUES (?, ?, ?, 'in_progress', '[]', datetime('now'))
+    `).bind(sessionId, clerkId, caseId).run();
+    
+    // Get correct answer from case
+    const caseResult = await db.prepare(
+      'SELECT root_cause, correct_fix, xp_reward FROM rca_cases WHERE id = ?'
+    ).bind(caseId).first();
+    
+    if (!caseResult) {
+      return c.json({ success: false, error: 'Case not found' }, 404);
+    }
+    
+    // Import scoring function
+    const { scoreWithAI } = await import('./lib/scoring');
+    
+    // Score with AI
+    const scoringResult = await scoreWithAI(c.env, {
+      submitted_root_cause: root_cause,
+      submitted_reasoning: fix,
+      correct_root_cause: caseResult.root_cause,
+      correct_reasoning: caseResult.correct_fix,
+      five_whys: fiveWhys || [],
+      fishbone: fishboneCauses,
+    });
+    
+    // Calculate efficiency score based on data requests
+    const totalDataSources = 7; // Average number of data sources per case
+    const dataEfficiency = dataRequested.length <= 5 ? 20 : Math.max(0, 20 - (dataRequested.length - 5) * 2);
+    
+    // Build detailed score
+    const detailedScore = {
+      root_cause_score: Math.round(scoringResult.score * 0.5),
+      fix_score: Math.round(scoringResult.score * 0.3),
+      efficiency_score: dataEfficiency,
+      total_score: Math.round(scoringResult.score * 0.8 + dataEfficiency),
+      is_correct: scoringResult.score >= 70,
+      feedback: scoringResult.feedback.praxy_message,
+    };
+    
+    // Calculate XP earned
+    const xp_earned = Math.round((caseResult.xp_reward || 200) * (detailedScore.total_score / 100));
+    
+    // Update session
+    await db.prepare(`
+      UPDATE rca_sessions
+      SET status = 'completed',
+          data_requests_made = ?,
+          five_whys = ?,
+          fishbone = ?,
+          submitted_root_cause = ?,
+          submitted_reasoning = ?,
+          score = ?,
+          feedback = ?,
+          time_seconds = ?,
+          completed_at = datetime('now')
+      WHERE id = ?
+    `).bind(
+      JSON.stringify(dataRequested || []),
+      JSON.stringify(fiveWhys || []),
+      JSON.stringify(fishboneCauses || []),
+      root_cause,
+      fix,
+      detailedScore.total_score,
+      JSON.stringify(detailedScore),
+      timeSpent || 0,
+      sessionId
+    ).run();
+    
+    // Update progress
+    const progressResult = await db.prepare(
+      'SELECT * FROM progress WHERE clerk_id = ? AND simulator = ?'
+    ).bind(clerkId, 'rca').first();
+    
+    if (progressResult) {
+      const totalSessions = (progressResult.total_sessions || 0) + 1;
+      const totalXp = (progressResult.total_xp || 0) + xp_earned;
+      const bestScore = Math.max(progressResult.best_score || 0, detailedScore.total_score);
+      
+      await db.prepare(`
+        UPDATE progress
+        SET total_sessions = ?, total_xp = ?, best_score = ?, updated_at = datetime('now')
+        WHERE clerk_id = ? AND simulator = ?
+      `).bind(totalSessions, totalXp, bestScore, clerkId, 'rca').run();
+    } else {
+      await db.prepare(`
+        INSERT INTO progress (id, clerk_id, simulator, total_sessions, total_xp, best_score)
+        VALUES (?, ?, 'rca', 1, ?, ?)
+      `).bind(crypto.randomUUID(), clerkId, xp_earned, detailedScore.total_score).run();
+    }
+    
+    // Update user XP
+    await db.prepare(`
+      UPDATE users SET total_xp = total_xp + ?, updated_at = datetime('now')
+      WHERE clerk_id = ?
+    `).bind(xp_earned, clerkId).run();
+    
+    return c.json({
+      success: true,
+      score: detailedScore,
+      session: { id: sessionId },
+    });
+  } catch (error) {
+    console.error('Error in POST /rca/submit:', error);
+    return c.json({ success: false, error: 'Failed to submit analysis' }, 500);
+  }
+});
+
+// GET /api/rca/progress - Get user's RCA progress
+app.get('/rca/progress', async (c) => {
+  try {
+    const db = c.env.DB;
+    const clerkId = c.req.query('clerkId');
+    
+    if (!clerkId) {
+      return c.json({ success: false, error: 'clerkId is required' }, 400);
+    }
+    
+    // Get progress
+    const progressResult = await db.prepare(
+      'SELECT * FROM progress WHERE clerk_id = ? AND simulator = ?'
+    ).bind(clerkId, 'rca').first();
+    
+    const progress = progressResult || {
+      total_sessions: 0,
+      total_xp: 0,
+      best_score: 0,
+    };
+    
+    // Get completed sessions
+    const sessionsResult = await db.prepare(`
+      SELECT case_id FROM rca_sessions
+      WHERE clerk_id = ? AND status = 'completed'
+      GROUP BY case_id
+    `).bind(clerkId).all();
+    
+    const completedCases = (sessionsResult.results || []).map((s: any) => s.case_id);
+    
+    return c.json({
+      success: true,
+      completedCases,
+    });
+  } catch (error) {
+    console.error('Error in GET /rca/progress:', error);
+    return c.json({ success: false, error: 'Failed to get progress' }, 500);
+  }
+});
+
 export default app;
