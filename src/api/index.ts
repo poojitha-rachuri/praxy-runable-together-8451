@@ -594,20 +594,28 @@ app.post('/sessions', async (c) => {
   }
 });
 
-// GET /api/sessions - Get user's session history
+// GET /api/sessions - Get user's session history (optional limit for recent sessions)
 app.get('/sessions', async (c) => {
   try {
     const db = drizzle(c.env.DB);
     const clerkId = c.req.query('clerkId');
+    const limitParam = c.req.query('limit');
+    const limit = limitParam ? Math.min(Math.max(1, parseInt(limitParam, 10)), 100) : undefined;
     
     if (!clerkId) {
       return c.json({ success: false, error: 'clerkId is required' }, 400);
     }
     
-    const userSessions = await db.select()
-      .from(sessions)
-      .where(eq(sessions.clerkId, clerkId))
-      .orderBy(desc(sessions.completedAt));
+    const userSessions = limit
+      ? await db.select()
+          .from(sessions)
+          .where(eq(sessions.clerkId, clerkId))
+          .orderBy(desc(sessions.completedAt))
+          .limit(limit)
+      : await db.select()
+          .from(sessions)
+          .where(eq(sessions.clerkId, clerkId))
+          .orderBy(desc(sessions.completedAt));
     
     return c.json({ success: true, sessions: userSessions });
   } catch (error) {
@@ -697,6 +705,138 @@ app.get('/badges', async (c) => {
   } catch (error) {
     console.error('Error in GET /badges:', error);
     return c.json({ success: false, error: 'Failed to get badges' }, 500);
+  }
+});
+
+// ====================
+// QUESTIONS ROUTES
+// ====================
+
+// GET /api/questions - Get questions for a level
+app.get('/questions', async (c) => {
+  try {
+    const db = c.env.DB;
+    const levelId = c.req.query('levelId');
+
+    if (!levelId) {
+      return c.json({ success: false, error: 'levelId is required' }, 400);
+    }
+
+    const result = await db.prepare(
+      'SELECT * FROM questions WHERE level_id = ? ORDER BY question_number ASC'
+    ).bind(levelId).all();
+
+    const questions = (result.results || []).map((row: any) => ({
+      id: row.id,
+      level_id: row.level_id,
+      question_number: row.question_number,
+      type: row.type,
+      prompt: row.prompt,
+      context: row.context || undefined,
+      options: typeof row.options === 'string' ? JSON.parse(row.options) : row.options,
+      correct_answer: row.correct_answer,
+      explanation: row.explanation,
+      hint: row.hint || undefined,
+      xp_value: row.xp_value,
+    }));
+
+    return c.json({ success: true, questions });
+  } catch (error) {
+    console.error('Error in GET /questions:', error);
+    return c.json({ success: false, error: 'Failed to get questions' }, 500);
+  }
+});
+
+// POST /api/questions/answer - Submit an answer and check correctness
+app.post('/questions/answer', async (c) => {
+  try {
+    const db = c.env.DB;
+    const body = await c.req.json() as {
+      questionId: string;
+      answer: string;
+      clerkId?: string;
+    };
+
+    const { questionId, answer, clerkId } = body;
+
+    if (!questionId || !answer) {
+      return c.json({ success: false, error: 'questionId and answer are required' }, 400);
+    }
+
+    const row = await db.prepare(
+      'SELECT correct_answer, explanation, xp_value FROM questions WHERE id = ?'
+    ).bind(questionId).first() as any;
+
+    if (!row) {
+      return c.json({ success: false, error: 'Question not found' }, 404);
+    }
+
+    const correct = row.correct_answer === answer;
+    const xpEarned = correct ? (row.xp_value || 30) : 0;
+
+    // Award XP to user if correct and clerkId provided
+    if (correct && clerkId) {
+      try {
+        const orm = drizzle(c.env.DB);
+        const user = await orm.select().from(users).where(eq(users.clerkId, clerkId)).get();
+        if (user) {
+          await orm.update(users)
+            .set({
+              totalXp: (user.totalXp || 0) + xpEarned,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(users.clerkId, clerkId));
+        }
+      } catch (e) {
+        console.error('Failed to award XP:', e);
+      }
+    }
+
+    return c.json({
+      success: true,
+      result: {
+        correct,
+        explanation: row.explanation,
+        xp_earned: xpEarned,
+      },
+    });
+  } catch (error) {
+    console.error('Error in POST /questions/answer:', error);
+    return c.json({ success: false, error: 'Failed to check answer' }, 500);
+  }
+});
+
+// ====================
+// DASHBOARD ROUTES
+// ====================
+
+// GET /api/dashboard/progress - Get all simulator progress for user
+app.get('/dashboard/progress', async (c) => {
+  try {
+    const db = drizzle(c.env.DB);
+    const clerkId = c.req.query('clerkId');
+    
+    if (!clerkId) {
+      return c.json({ success: false, error: 'clerkId is required' }, 400);
+    }
+    
+    const allProgress = await db.select()
+      .from(progress)
+      .where(eq(progress.clerkId, clerkId));
+    
+    const progressList = allProgress.map((p) => ({
+      simulator: p.simulator,
+      currentLevel: p.currentLevel ?? 1,
+      completedLevels: JSON.parse(p.completedLevels || '[]') as number[],
+      badges: JSON.parse(p.badges || '[]') as string[],
+      bestScore: p.bestScore ?? 0,
+      totalSessions: p.totalSessions ?? 0,
+    }));
+    
+    return c.json({ success: true, progress: progressList });
+  } catch (error) {
+    console.error('Error in GET /dashboard/progress:', error);
+    return c.json({ success: false, error: 'Failed to get progress' }, 500);
   }
 });
 
