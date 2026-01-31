@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -84,6 +84,11 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   
+  /* Fonts */
+  --font-nunito: "Nunito", sans-serif;
+  --font-inter: "Inter", sans-serif;
+  --font-space: "Space Grotesk", sans-serif;
+
   /* Brand colors for Tailwind */
   --color-coral: #FF6B6B;
   --color-teal: #2A9D8F;
@@ -227,6 +232,67 @@ body {
 .gradient-coral {
   background: linear-gradient(135deg, #FF6B6B 0%, #FFD166 100%);
 }
+
+/* Praxy Gradient */
+.praxy-gradient {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FFD166 100%);
+}
+
+/* Smooth transitions */
+.transition-lift {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.transition-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* Speech bubble arrow */
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 20px 20px 0 20px;
+  border-style: solid;
+  border-color: #FF6B6B transparent transparent transparent;
+}
+
+/* Video diffuse effect */
+.video-diffuse {
+  position: relative;
+  mask-image: radial-gradient(
+    ellipse 90% 85% at center,
+    black 40%,
+    transparent 75%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 90% 85% at center,
+    black 40%,
+    transparent 75%
+  );
+}
+
+.video-diffuse::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 30%,
+    var(--color-cream, #FDF8F3) 70%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Animation delays for new landing page */
+.animate-delay-100 { animation-delay: 0.1s; }
+.animate-delay-200 { animation-delay: 0.2s; }
+.animate-delay-300 { animation-delay: 0.3s; }
+.animate-delay-400 { animation-delay: 0.4s; }
+.animate-delay-500 { animation-delay: 0.5s; }
 
 /* Warm shadow */
 .shadow-warm {
