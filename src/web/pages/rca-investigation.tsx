@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRoute, useLocation } from 'wouter';
 import { useUser } from '@clerk/clerk-react';
 import { FiArrowLeft, FiHelpCircle } from 'react-icons/fi';
-import PraxyAvatar from '../components/ui/PraxyAvatar';
+import PraxyMascot from '../components/praxy-mascot';
 import DataRequestPanel from '../components/rca/DataRequestPanel';
 import FiveWhysBuilder from '../components/rca/FiveWhysBuilder';
 import HypothesisForm from '../components/rca/HypothesisForm';
@@ -94,7 +94,7 @@ const RCAInvestigation = () => {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
         <div className="text-center">
-          <PraxyAvatar size={80} expression="thinking" animate />
+          <PraxyMascot size={80} expression="thinking" waving={false} />
           <p className="font-inter text-charcoal/60 mt-4">Loading case...</p>
         </div>
       </div>
@@ -144,7 +144,7 @@ const RCAInvestigation = () => {
           {/* Problem statement card */}
           <div className="bg-white rounded-[16px] p-6 shadow-warm mb-6">
             <div className="flex items-start gap-4">
-              <PraxyAvatar size={60} expression="encouraging" />
+              <PraxyMascot size={60} expression="happy" />
               <div className="flex-1">
                 <h2 className="font-nunito font-700 text-2xl text-charcoal mb-2">
                   {rcaCase.title}

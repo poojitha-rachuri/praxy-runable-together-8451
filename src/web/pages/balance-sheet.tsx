@@ -252,7 +252,7 @@ const BalanceSheet = () => {
             </Link>
             <div>
               <h1 className="font-nunito font-700 text-lg md:text-xl text-charcoal">
-                Balance Sheet Mastery
+                SheetSmart
               </h1>
             </div>
           </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRoute, useLocation } from 'wouter';
 import { Link } from 'wouter';
 import { FiArrowLeft, FiCheck, FiX, FiTrendingUp, FiAward } from 'react-icons/fi';
-import PraxyAvatar from '../components/ui/PraxyAvatar';
+import PraxyMascot from '../components/praxy-mascot';
 import { getRCASession, getCaseById, type RCASession, type RCACase } from '../lib/rca';
 
 const RCAFeedback = () => {
@@ -45,7 +45,7 @@ const RCAFeedback = () => {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
         <div className="text-center">
-          <PraxyAvatar size={80} expression="thinking" animate />
+          <PraxyMascot size={80} expression="thinking" waving={false} />
           <p className="font-inter text-charcoal/60 mt-4">Analyzing your investigation...</p>
         </div>
       </div>
@@ -71,9 +71,9 @@ const RCAFeedback = () => {
   const isPassed = score.is_correct || score.total_score >= 70;
   const scoreColor = score.total_score >= 80 ? 'teal' : score.total_score >= 60 ? 'yellow-600' : 'coral';
 
-  const getPraxyExpression = () => {
+  const getPraxyExpression = (): "default" | "thinking" | "celebrating" | "sympathetic" | "happy" => {
     if (score.total_score >= 80) return 'celebrating';
-    if (score.total_score >= 60) return 'encouraging';
+    if (score.total_score >= 60) return 'happy';
     return 'thinking';
   };
 
@@ -109,7 +109,7 @@ const RCAFeedback = () => {
           {/* Score card with Praxy */}
           <div className="bg-white rounded-[16px] p-8 shadow-warm">
             <div className="flex items-start gap-6 mb-6">
-              <PraxyAvatar size={80} expression={getPraxyExpression()} animate />
+              <PraxyMascot size={80} expression={getPraxyExpression()} waving={false} />
               <div className="flex-1">
                 <h2 className="font-nunito font-700 text-2xl text-charcoal mb-2">
                   {getPraxyMessage()}

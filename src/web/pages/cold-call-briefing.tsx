@@ -1,6 +1,6 @@
 import { Link, useParams, useLocation } from 'wouter';
 import { FiArrowLeft, FiPhone, FiTarget, FiUser, FiBriefcase, FiZap, FiAlertCircle, FiShield } from 'react-icons/fi';
-import PraxyAvatar from '../components/ui/PraxyAvatar';
+import PraxyMascot from '../components/praxy-mascot';
 import SpeechBubble from '../components/ui/SpeechBubble';
 
 const ColdCallBriefing = () => {
@@ -29,7 +29,7 @@ const ColdCallBriefing = () => {
         <div className="max-w-4xl mx-auto">
           {/* Praxy encouragement */}
           <div className="flex items-start gap-4 mb-8">
-            <PraxyAvatar size={70} expression="encouraging" animate />
+            <PraxyMascot size={70} expression="happy" waving={false} />
             <SpeechBubble size="md" className="flex-1 max-w-md">
               <p className="font-inter text-charcoal">
                 This is a tough one — you're calling a CISO who talks to security vendors all day. Read the brief, know your differentiators, and lead with his pain points, not your features. Let's go! 💪

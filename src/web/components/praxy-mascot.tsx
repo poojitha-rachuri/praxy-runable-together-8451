@@ -6,20 +6,18 @@ interface PraxyMascotProps {
 }
 
 const PraxyMascot = ({ size = 120, className = "", waving = true, expression = "default" }: PraxyMascotProps) => {
-  // Map expression to image file
+  // Map expression to image file - use base URL for consistent path resolution
   const getImageSrc = () => {
-    switch (expression) {
-      case "thinking":
-        return "/praxy-thinking.png";
-      case "celebrating":
-        return "/praxy-celebrating.png";
-      case "sympathetic":
-        return "/praxy-sympathetic.png";
-      case "happy":
-        return "/praxy-happy.png";
-      default:
-        return "/praxy-default.png";
-    }
+    const basePath = import.meta.env.BASE_URL || '/';
+    const imageMap: Record<string, string> = {
+      thinking: 'praxy-thinking.png',
+      celebrating: 'praxy-celebrating.png',
+      sympathetic: 'praxy-sympathetic.png',
+      happy: 'praxy-happy.png',
+      default: 'praxy-default.png',
+    };
+    const imageName = imageMap[expression] || imageMap.default;
+    return `${basePath}${imageName}`;
   };
 
   return (

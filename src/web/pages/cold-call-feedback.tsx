@@ -1,26 +1,26 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'wouter';
 import { FiArrowLeft, FiRefreshCw, FiArrowRight, FiAward, FiTrendingUp } from 'react-icons/fi';
-import PraxyAvatar from '../components/ui/PraxyAvatar';
+import PraxyMascot from '../components/praxy-mascot';
 import SpeechBubble from '../components/ui/SpeechBubble';
 import { type CallScore, type TranscriptMessage, type Scenario, getScenarioById } from '../lib/coldcall';
 
 // Hardcoded scenarios for fallback
 const hardcodedScenarios: Record<string, Scenario> = {
-  'sc-stripe-1': {
-    id: 'sc-stripe-1',
+  'cc-1': {
+    id: 'cc-1',
     simulator_id: 'sim-cc',
     level_number: 1,
-    company_name: 'Stripe',
-    company_url: 'https://stripe.com',
-    company_context: 'Stripe is a payments infrastructure company.',
-    prospect_name: 'Alex Chen',
-    prospect_role: 'Engineering Manager',
-    prospect_personality: 'Friendly but busy.',
-    objective: 'Book a 15-minute demo call',
+    company_name: 'Razorpay',
+    company_url: 'https://razorpay.com',
+    company_context: 'Razorpay is a fintech payments company. You are selling SecureShield Pro — an enterprise cybersecurity platform.',
+    prospect_name: 'Rajesh Menon',
+    prospect_role: 'CISO',
+    prospect_personality: 'Technical, risk-averse, skeptical of security vendors.',
+    objective: 'Get Rajesh to agree to a technical demo with his security team',
     difficulty: 'beginner',
-    tips: [],
-    success_criteria: [],
+    tips: ['Reference the RBI audit or phishing attacks', 'Position as consolidation play vs CrowdStrike', 'Ask for a specific 30-min demo next step'],
+    success_criteria: ['Demo booked', 'Technical credibility established', 'Pain points addressed'],
   },
   'sc-shopify-2': {
     id: 'sc-shopify-2',
@@ -84,7 +84,7 @@ const getScoreBg = (score: number): string => {
 };
 
 // Get Praxy message based on score
-const getPraxyMessage = (score: number): { expression: 'celebrating' | 'encouraging' | 'thinking'; message: string } => {
+const getPraxyMessage = (score: number): { expression: 'celebrating' | 'happy' | 'thinking'; message: string } => {
   if (score >= 80) {
     return {
       expression: 'celebrating',
@@ -93,7 +93,7 @@ const getPraxyMessage = (score: number): { expression: 'celebrating' | 'encourag
   }
   if (score >= 60) {
     return {
-      expression: 'encouraging',
+      expression: 'happy',
       message: "Nice effort! 💪 You're getting the hang of this. A few tweaks to your value proposition and close could make a big difference. Want to try again?",
     };
   }
@@ -125,13 +125,13 @@ const ColdCallFeedback = () => {
       } else {
         // Demo fallback data
         setResult({
-          scenarioId: scenarioId || 'sc-stripe-1',
+          scenarioId: scenarioId || 'cc-1',
           transcript: [
-            { role: 'assistant', content: "Hello, this is Alex Chen. Who's calling?", timestamp: Date.now() - 120000 },
-            { role: 'user', content: "Hi Alex, this is John from DevTools Inc. I noticed your team at Stripe ships code really fast, and I wanted to share how we've helped other engineering teams cut their deployment time by 40%.", timestamp: Date.now() - 110000 },
-            { role: 'assistant', content: "Hmm, 40%? That's interesting. We do ship pretty fast already though. What makes you different?", timestamp: Date.now() - 100000 },
-            { role: 'user', content: "Great question! Unlike traditional CI/CD tools, we integrate directly into your IDE. Your devs at Stripe wouldn't have to change their workflow at all.", timestamp: Date.now() - 90000 },
-            { role: 'assistant', content: "I might have 5 minutes. Go ahead.", timestamp: Date.now() - 80000 },
+            { role: 'assistant', content: "Rajesh Menon here. Who is this?", timestamp: Date.now() - 120000 },
+            { role: 'user', content: "Hi Rajesh, this is Priya from SecureShield. I understand Razorpay has an RBI compliance audit coming up in 3 months, and I wanted to share how we've helped other fintechs automate their compliance documentation.", timestamp: Date.now() - 110000 },
+            { role: 'assistant', content: "Hmm, we already use CrowdStrike and a few other tools. Why would we need another security vendor?", timestamp: Date.now() - 100000 },
+            { role: 'user', content: "Great question! SecureShield isn't meant to replace CrowdStrike — it consolidates your threat detection, compliance automation, and vendor risk management into one dashboard. What if you could replace 3 tools with one?", timestamp: Date.now() - 90000 },
+            { role: 'assistant', content: "That's interesting. My team is swamped right now though.", timestamp: Date.now() - 80000 },
           ],
           duration: 127,
           score: {
@@ -142,14 +142,14 @@ const ColdCallFeedback = () => {
             control: 75,
             close: 62,
             highlights: [
-              { text: 'Strong opening with specific metric (40%)', type: 'good' },
-              { text: 'Good personalization mentioning Stripe', type: 'good' },
-              { text: 'Missed opportunity to ask qualifying questions', type: 'improve' },
+              { text: 'Strong opening referencing the RBI audit', type: 'good' },
+              { text: 'Good positioning as consolidation not replacement', type: 'good' },
+              { text: 'Missed opportunity to ask for specific demo time', type: 'improve' },
             ],
             improvements: [
-              'Ask about their current pain points before pitching',
-              'Close with a specific ask (demo time/date)',
-              'Handle the "we ship fast already" objection more directly',
+              'Ask about their specific compliance pain points',
+              'Close with a specific ask (30-min demo next week)',
+              'Mention board reporting needs to create urgency',
             ],
           },
         });
@@ -210,7 +210,7 @@ const ColdCallFeedback = () => {
         <div className="max-w-4xl mx-auto">
           {/* Praxy feedback */}
           <div className="flex items-start gap-4 mb-8">
-            <PraxyAvatar size={80} expression={praxyFeedback.expression} animate />
+            <PraxyMascot size={80} expression={praxyFeedback.expression} waving={false} />
             <SpeechBubble size="lg" className="flex-1">
               <p className="font-inter text-charcoal leading-relaxed">
                 {praxyFeedback.message}

@@ -28,7 +28,7 @@ const ARENAS = [
     title: "I Will Find You",
     tagline: "Master the art of cold calling",
     description: "Practice sales conversations with AI voice roleplay. Real scenarios, realistic personas, instant feedback.",
-    tags: ["Stripe", "Shopify", "Startups"],
+    tags: ["Razorpay", "Shopify", "Startups"],
     levels: "5 Levels",
     borderColor: "border-l-teal",
     categoryColor: "text-coral",

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { useUser } from '@clerk/clerk-react';
 import { FiSearch, FiLock, FiCheck, FiArrowLeft, FiTrendingDown } from 'react-icons/fi';
-import PraxyAvatar from '../components/ui/PraxyAvatar';
+import PraxyMascot from '../components/praxy-mascot';
 import { getCases, getRCAProgress, type RCACase } from '../lib/rca';
 
 // Difficulty badge colors
@@ -165,7 +165,7 @@ const RCA = () => {
               <FiSearch className="w-5 h-5 text-coral" />
             </div>
             <div>
-              <h1 className="font-nunito font-700 text-xl text-charcoal">RCA Detective</h1>
+              <h1 className="font-nunito font-700 text-xl text-charcoal">Get to the Bottom</h1>
               <p className="font-inter text-sm text-charcoal/60">Find the root cause</p>
             </div>
           </div>
@@ -177,7 +177,7 @@ const RCA = () => {
         <div className="max-w-5xl mx-auto">
           {/* Intro section with Praxy */}
           <div className="flex items-start gap-6 mb-10 bg-white rounded-[16px] p-6 shadow-warm">
-            <PraxyAvatar size={80} expression="thinking" animate />
+            <PraxyMascot size={80} expression="thinking" waving={false} />
             <div className="flex-1">
               <h2 className="font-nunito font-700 text-2xl text-charcoal mb-2">
                 Ready to solve some mysteries? 🔍

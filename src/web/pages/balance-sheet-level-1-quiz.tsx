@@ -478,8 +478,10 @@ const BalanceSheetLevel1Quiz = () => {
       setCurrentQuestion(currentQuestion + 1);
     } else {
       // Quiz complete - calculate final results
+      // Note: score state already includes the last answer (incremented in handleSubmit)
+      // so we just use score directly - no need to add 1 again
       setSaving(true);
-      const finalScore = score + (selectedAnswer === question.correctAnswer ? 1 : 0);
+      const finalScore = score;
       const totalXP = finalScore * xpPerQuestion;
       const timeSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
       

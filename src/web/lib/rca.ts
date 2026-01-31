@@ -25,9 +25,9 @@ export interface RCACase {
   metric_name: string;
   metric_drop: string;
   time_period: string | null;
-  available_data: DataSource[];
-  root_cause: string;
-  correct_fix: string;
+  available_data?: DataSource[];  // Optional - only returned for single case view
+  root_cause?: string;            // Optional - only returned for single case view
+  correct_fix?: string;           // Optional - only returned for single case view
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   xp_reward: number;
 }

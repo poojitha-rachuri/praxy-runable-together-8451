@@ -22,15 +22,15 @@ export function getScenarios(env: any): ColdCallScenario[] {
     {
       id: 'cc-1',
       level: 1,
-      title: 'The Friendly Gatekeeper',
-      company: 'Stripe',
-      prospect: { name: 'Sarah', role: 'Receptionist' },
+      title: 'The Skeptical CISO',
+      company: 'Razorpay',
+      prospect: { name: 'Rajesh Menon', role: 'CISO' },
       difficulty: 'beginner',
-      objective: 'Get transferred to the decision maker',
+      objective: 'Get Rajesh to agree to a technical demo with his security team',
       tips: [
-        'Be polite and professional',
-        'Have a clear reason for calling',
-        'Ask for the person by name if possible'
+        'Reference the RBI audit or phishing attacks',
+        'Position SecureShield as consolidation play vs CrowdStrike',
+        'Ask for a specific 30-min demo next step'
       ]
     },
     {

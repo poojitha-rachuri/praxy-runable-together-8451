@@ -49,6 +49,7 @@ const ColdCallSession = () => {
   const [isEnding, setIsEnding] = useState(false);
   const [startTime, setStartTime] = useState<number>(0);
   const [hasStarted, setHasStarted] = useState(false);
+  const [showScenario, setShowScenario] = useState(true);
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -309,8 +310,6 @@ const ColdCallSession = () => {
 
   const isConnected = conversation.status === 'connected';
   const isConnecting = conversation.status === 'connecting';
-
-  const [showScenario, setShowScenario] = useState(true);
 
   return (
     <div className="min-h-screen bg-charcoal flex flex-col">

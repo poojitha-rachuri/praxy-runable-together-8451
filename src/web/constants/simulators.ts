@@ -16,7 +16,7 @@ export interface SimulatorMeta {
 export const SIMULATORS: SimulatorMeta[] = [
   {
     id: 'balance-sheet',
-    name: 'Balance Sheet Mastery',
+    name: 'SheetSmart',
     slug: 'balance-sheet',
     status: 'active',
     total_levels: 10,
@@ -25,7 +25,7 @@ export const SIMULATORS: SimulatorMeta[] = [
   },
   {
     id: 'cold-call',
-    name: 'Cold Call Hero',
+    name: 'I Will Find You',
     slug: 'cold-call',
     status: 'active',
     total_levels: 10,
@@ -34,7 +34,7 @@ export const SIMULATORS: SimulatorMeta[] = [
   },
   {
     id: 'rca',
-    name: 'RCA Detective',
+    name: 'Get to the Bottom',
     slug: 'rca',
     status: 'active',
     total_levels: 10,

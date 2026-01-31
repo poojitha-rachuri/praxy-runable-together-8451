@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { useUser } from '@clerk/clerk-react';
 import { FiPhone, FiLock, FiCheck, FiArrowLeft, FiClock, FiTrendingUp } from 'react-icons/fi';
-import PraxyAvatar from '../components/ui/PraxyAvatar';
+import PraxyMascot from '../components/praxy-mascot';
 import { getScenarios, getColdCallProgress, getColdCallSessions, type Scenario, type ColdCallSession } from '../lib/coldcall';
 
 // Difficulty badge colors
@@ -195,7 +195,7 @@ const ColdCall = () => {
               <FiPhone className="w-5 h-5 text-coral" />
             </div>
             <div>
-              <h1 className="font-nunito font-700 text-xl text-charcoal">Cold Call Hero</h1>
+              <h1 className="font-nunito font-700 text-xl text-charcoal">I Will Find You</h1>
               <p className="font-inter text-sm text-charcoal/60">Practice makes perfect</p>
             </div>
           </div>
@@ -207,7 +207,7 @@ const ColdCall = () => {
         <div className="max-w-5xl mx-auto">
           {/* Intro section with Praxy */}
           <div className="flex items-start gap-6 mb-10 bg-white rounded-[16px] p-6 shadow-warm">
-            <PraxyAvatar size={80} expression="encouraging" animate />
+            <PraxyMascot size={80} expression="happy" waving={false} />
             <div className="flex-1">
               <h2 className="font-nunito font-700 text-2xl text-charcoal mb-2">
                 Ready to make some calls? 📞
