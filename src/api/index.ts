@@ -709,43 +709,8 @@ app.get('/badges', async (c) => {
 });
 
 // ====================
-// QUESTIONS ROUTES
+// QUIZ ANSWER ROUTE
 // ====================
-
-// GET /api/questions - Get questions for a level
-app.get('/questions', async (c) => {
-  try {
-    const db = c.env.DB;
-    const levelId = c.req.query('levelId');
-
-    if (!levelId) {
-      return c.json({ success: false, error: 'levelId is required' }, 400);
-    }
-
-    const result = await db.prepare(
-      'SELECT * FROM questions WHERE level_id = ? ORDER BY question_number ASC'
-    ).bind(levelId).all();
-
-    const questions = (result.results || []).map((row: any) => ({
-      id: row.id,
-      level_id: row.level_id,
-      question_number: row.question_number,
-      type: row.type,
-      prompt: row.prompt,
-      context: row.context || undefined,
-      options: typeof row.options === 'string' ? JSON.parse(row.options) : row.options,
-      correct_answer: row.correct_answer,
-      explanation: row.explanation,
-      hint: row.hint || undefined,
-      xp_value: row.xp_value,
-    }));
-
-    return c.json({ success: true, questions });
-  } catch (error) {
-    console.error('Error in GET /questions:', error);
-    return c.json({ success: false, error: 'Failed to get questions' }, 500);
-  }
-});
 
 // POST /api/questions/answer - Submit an answer and check correctness
 app.post('/questions/answer', async (c) => {

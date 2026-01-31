@@ -5,7 +5,7 @@ const API_BASE = '/api';
 
 export const getQuestionsByLevel = async (levelId: string): Promise<Question[]> => {
   try {
-    const response = await fetch(`${API_BASE}/questions?levelId=${levelId}`, {
+    const response = await fetch(`${API_BASE}/questions/${levelId}`, {
       headers: { 'Content-Type': 'application/json' },
     });
 
