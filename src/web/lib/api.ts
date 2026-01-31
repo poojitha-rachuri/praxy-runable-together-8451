@@ -258,3 +258,114 @@ export const initDatabase = async (): Promise<boolean> => {
   const result = await apiFetch<{ success: boolean }>('/init-db');
   return result?.success || false;
 };
+
+// ====================
+// SIMULATORS API
+// ====================
+
+export interface Simulator {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  status: string;
+  total_levels: number;
+  order_index: number;
+}
+
+export const getSimulators = async (): Promise<Simulator[]> => {
+  const result = await apiFetch<{ success: boolean; simulators: Simulator[] }>('/simulators');
+  return result?.simulators || [];
+};
+
+export const getSimulator = async (slug: string): Promise<Simulator | null> => {
+  const result = await apiFetch<{ success: boolean; simulator: Simulator }>(`/simulators/${slug}`);
+  return result?.success ? result.simulator : null;
+};
+
+// ====================
+// LEVELS API
+// ====================
+
+export interface LevelData {
+  id: string;
+  simulator_id: string;
+  level_number: number;
+  title: string;
+  subtitle: string | null;
+  concept: string | null;
+  formula: string | null;
+  explanation: string | null;
+  company_name: string | null;
+  company_data: any;
+  insight: string | null;
+  status: string;
+  xp_reward: number;
+  badge_id: string | null;
+}
+
+export const getLevels = async (simulatorSlug: string): Promise<LevelData[]> => {
+  const result = await apiFetch<{ success: boolean; levels: LevelData[] }>(`/levels/${simulatorSlug}`);
+  return result?.levels || [];
+};
+
+export const getLevel = async (simulatorSlug: string, levelNumber: number): Promise<LevelData | null> => {
+  const result = await apiFetch<{ success: boolean; level: LevelData }>(`/levels/${simulatorSlug}/${levelNumber}`);
+  return result?.success ? result.level : null;
+};
+
+// ====================
+// QUESTIONS API
+// ====================
+
+export interface QuestionOption {
+  label: string;
+  value: string;
+  data?: any;
+}
+
+export interface QuestionData {
+  id: string;
+  level_id: string;
+  question_number: number;
+  type: string; // 'visual-comparison', 'yes-no', 'multiple-choice'
+  prompt: string;
+  context: string | null;
+  options: QuestionOption[];
+  correct_answer: string;
+  explanation: string | null;
+  hint: string | null;
+  xp_value: number;
+}
+
+export const getQuestions = async (levelId: string): Promise<QuestionData[]> => {
+  const result = await apiFetch<{ success: boolean; questions: QuestionData[] }>(`/questions/${levelId}`);
+  return result?.questions || [];
+};
+
+export const getQuestionsByLevel = async (simulatorSlug: string, levelNumber: number): Promise<QuestionData[]> => {
+  const result = await apiFetch<{ success: boolean; questions: QuestionData[] }>(
+    `/questions/by-level/${simulatorSlug}/${levelNumber}`
+  );
+  return result?.questions || [];
+};
+
+// ====================
+// COMPANY DATA API
+// ====================
+
+export interface CompanyDataItem {
+  id: string;
+  company_name: string;
+  ticker: string | null;
+  year: number | null;
+  data_type: string;
+  raw_data: any;
+  source: string | null;
+}
+
+export const getCompanyData = async (): Promise<CompanyDataItem[]> => {
+  const result = await apiFetch<{ success: boolean; companies: CompanyDataItem[] }>('/company-data');
+  return result?.companies || [];
+};
